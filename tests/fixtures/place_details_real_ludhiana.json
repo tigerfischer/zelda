@@ -1,0 +1,542 @@
+{
+  "id": "ChIJYf2cJ6WCGjkRcGkj6KM0CXE",
+  "types": [
+    "dentist",
+    "dental_clinic",
+    "doctor",
+    "point_of_interest",
+    "service",
+    "medical_clinic",
+    "health",
+    "establishment"
+  ],
+  "formattedAddress": "Main Market,Daba-Lohara Road,Near Daba Police ChonkiLudhiana India, VV6P+X8F, Guru Nanak Nagar, Nitesh Vihar, Shimlapuri, Ludhiana, Punjab 141003, India",
+  "addressComponents": [
+    {
+      "longText": "Main Market,Daba-Lohara Road,Near Daba Police ChonkiLudhiana India",
+      "languageCode": "en"
+    },
+    {
+      "longText": "VV6P+X8F",
+      "shortText": "VV6P+X8F",
+      "types": [
+        "plus_code"
+      ],
+      "languageCode": "en-US"
+    },
+    {
+      "longText": "Guru Nanak Nagar",
+      "shortText": "Guru Nanak Nagar",
+      "types": [
+        "neighborhood",
+        "political"
+      ],
+      "languageCode": "en"
+    },
+    {
+      "longText": "Nitesh Vihar",
+      "shortText": "Nitesh Vihar",
+      "types": [
+        "sublocality_level_2",
+        "sublocality",
+        "political"
+      ],
+      "languageCode": "en"
+    },
+    {
+      "longText": "Shimlapuri",
+      "shortText": "Shimlapuri",
+      "types": [
+        "sublocality_level_1",
+        "sublocality",
+        "political"
+      ],
+      "languageCode": "en"
+    },
+    {
+      "longText": "Ludhiana",
+      "shortText": "Ludhiana",
+      "types": [
+        "locality",
+        "political"
+      ],
+      "languageCode": "en"
+    },
+    {
+      "longText": "Ludhiana",
+      "shortText": "Ludhiana",
+      "types": [
+        "administrative_area_level_3",
+        "political"
+      ],
+      "languageCode": "en"
+    },
+    {
+      "longText": "Patiala Division",
+      "shortText": "Patiala Division",
+      "types": [
+        "administrative_area_level_2",
+        "political"
+      ],
+      "languageCode": "en"
+    },
+    {
+      "longText": "Punjab",
+      "shortText": "PB",
+      "types": [
+        "administrative_area_level_1",
+        "political"
+      ],
+      "languageCode": "en"
+    },
+    {
+      "longText": "India",
+      "shortText": "IN",
+      "types": [
+        "country",
+        "political"
+      ],
+      "languageCode": "en"
+    },
+    {
+      "longText": "141003",
+      "shortText": "141003",
+      "types": [
+        "postal_code"
+      ],
+      "languageCode": "en-US"
+    }
+  ],
+  "location": {
+    "latitude": 30.862427200000003,
+    "longitude": 75.8856922
+  },
+  "rating": 4.9,
+  "googleMapsUri": "https://maps.google.com/?cid=8145099279655201136&g_mp=CiVnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLkdldFBsYWNlEAIYBCAA",
+  "businessStatus": "OPERATIONAL",
+  "userRatingCount": 272,
+  "displayName": {
+    "text": "𝗦𝗮𝗶 𝗗𝗲𝗻𝘁𝗮𝗹 𝗖𝗹𝗶𝗻𝗶𝗰 - Best Dentist Near Me in Ludhiana",
+    "languageCode": "en"
+  },
+  "currentOpeningHours": {
+    "openNow": true,
+    "periods": [
+      {
+        "open": {
+          "day": 0,
+          "hour": 11,
+          "minute": 0,
+          "date": {
+            "year": 2026,
+            "month": 5,
+            "day": 3
+          }
+        },
+        "close": {
+          "day": 0,
+          "hour": 14,
+          "minute": 0,
+          "date": {
+            "year": 2026,
+            "month": 5,
+            "day": 3
+          }
+        }
+      },
+      {
+        "open": {
+          "day": 1,
+          "hour": 9,
+          "minute": 0,
+          "date": {
+            "year": 2026,
+            "month": 5,
+            "day": 4
+          }
+        },
+        "close": {
+          "day": 1,
+          "hour": 20,
+          "minute": 0,
+          "date": {
+            "year": 2026,
+            "month": 5,
+            "day": 4
+          }
+        }
+      },
+      {
+        "open": {
+          "day": 2,
+          "hour": 9,
+          "minute": 0,
+          "date": {
+            "year": 2026,
+            "month": 5,
+            "day": 5
+          }
+        },
+        "close": {
+          "day": 2,
+          "hour": 20,
+          "minute": 0,
+          "date": {
+            "year": 2026,
+            "month": 5,
+            "day": 5
+          }
+        }
+      },
+      {
+        "open": {
+          "day": 3,
+          "hour": 9,
+          "minute": 0,
+          "date": {
+            "year": 2026,
+            "month": 4,
+            "day": 29
+          }
+        },
+        "close": {
+          "day": 3,
+          "hour": 20,
+          "minute": 0,
+          "date": {
+            "year": 2026,
+            "month": 4,
+            "day": 29
+          }
+        }
+      },
+      {
+        "open": {
+          "day": 4,
+          "hour": 9,
+          "minute": 0,
+          "date": {
+            "year": 2026,
+            "month": 4,
+            "day": 30
+          }
+        },
+        "close": {
+          "day": 4,
+          "hour": 20,
+          "minute": 0,
+          "date": {
+            "year": 2026,
+            "month": 4,
+            "day": 30
+          }
+        }
+      },
+      {
+        "open": {
+          "day": 5,
+          "hour": 9,
+          "minute": 0,
+          "date": {
+            "year": 2026,
+            "month": 5,
+            "day": 1
+          }
+        },
+        "close": {
+          "day": 5,
+          "hour": 20,
+          "minute": 0,
+          "date": {
+            "year": 2026,
+            "month": 5,
+            "day": 1
+          }
+        }
+      },
+      {
+        "open": {
+          "day": 6,
+          "hour": 9,
+          "minute": 0,
+          "date": {
+            "year": 2026,
+            "month": 5,
+            "day": 2
+          }
+        },
+        "close": {
+          "day": 6,
+          "hour": 20,
+          "minute": 0,
+          "date": {
+            "year": 2026,
+            "month": 5,
+            "day": 2
+          }
+        }
+      }
+    ],
+    "weekdayDescriptions": [
+      "Monday: 9:00 AM – 8:00 PM",
+      "Tuesday: 9:00 AM – 8:00 PM",
+      "Wednesday: 9:00 AM – 8:00 PM",
+      "Thursday: 9:00 AM – 8:00 PM",
+      "Friday: 9:00 AM – 8:00 PM",
+      "Saturday: 9:00 AM – 8:00 PM",
+      "Sunday: 11:00 AM – 2:00 PM"
+    ],
+    "nextCloseTime": "2026-04-29T14:30:00Z"
+  },
+  "primaryType": "dentist",
+  "shortFormattedAddress": "VV6P+X8F, Main Market,Daba-Lohara Road,Near Daba Police ChonkiLudhiana India, Guru Nanak Nagar, Nitesh Vihar, Shimlapuri, Ludhiana",
+  "reviews": [
+    {
+      "name": "places/ChIJYf2cJ6WCGjkRcGkj6KM0CXE/reviews/Ci9DQUlRQUNvZENodHljRjlvT2xwS1JXdGhSRjg0WDJ4bFYxVmtlbmd3U0ZZd1drRRAB",
+      "relativePublishTimeDescription": "3 months ago",
+      "rating": 5,
+      "text": {
+        "text": "My experience was good and I'm visiting here from last 13 years. Doctor's dealing with patients are really good and they maintain proper hygiene while doing any procedure. I recommend sai dental clinic to all if you are suffering from any dental issues. At last ,i thanks to Doctor for best treatment ever.",
+        "languageCode": "en"
+      },
+      "originalText": {
+        "text": "My experience was good and I'm visiting here from last 13 years. Doctor's dealing with patients are really good and they maintain proper hygiene while doing any procedure. I recommend sai dental clinic to all if you are suffering from any dental issues. At last ,i thanks to Doctor for best treatment ever.",
+        "languageCode": "en"
+      },
+      "authorAttribution": {
+        "displayName": "Narinder Kataria",
+        "uri": "https://www.google.com/maps/contrib/111829336314547661615/reviews",
+        "photoUri": "https://lh3.googleusercontent.com/a/ACg8ocIRyHVM-AYYxc4IQyrrcKq1AfPbuS8MdQFrGoxAEut6wGymxA=s128-c0x00000000-cc-rp-mo"
+      },
+      "publishTime": "2026-01-26T04:52:13.565578246Z",
+      "flagContentUri": "https://www.google.com/local/content/rap/report?postId=Ci9DQUlRQUNvZENodHljRjlvT2xwS1JXdGhSRjg0WDJ4bFYxVmtlbmd3U0ZZd1drRRAB&d=17924085&t=1",
+      "googleMapsUri": "https://www.google.com/maps/reviews/data=!4m6!14m5!1m4!2m3!1sCi9DQUlRQUNvZENodHljRjlvT2xwS1JXdGhSRjg0WDJ4bFYxVmtlbmd3U0ZZd1drRRAB!2m1!1s0x391a82a5279cfd61:0x710934a3e8236970"
+    },
+    {
+      "name": "places/ChIJYf2cJ6WCGjkRcGkj6KM0CXE/reviews/Ci9DQUlRQUNvZENodHljRjlvT21KSE1rWktRMWgzZGpOTGNtVlhiVWhaTUhsVlZXYxAB",
+      "relativePublishTimeDescription": "2 months ago",
+      "rating": 5,
+      "text": {
+        "text": "Really nice doctor and supporting staff.... Very humble,, I suggest if you or your family have any dental problem please visit them... 😀",
+        "languageCode": "en"
+      },
+      "originalText": {
+        "text": "Really nice doctor and supporting staff.... Very humble,, I suggest if you or your family have any dental problem please visit them... 😀",
+        "languageCode": "en"
+      },
+      "authorAttribution": {
+        "displayName": "Gurmanvir Singh",
+        "uri": "https://www.google.com/maps/contrib/104467417158585494169/reviews",
+        "photoUri": "https://lh3.googleusercontent.com/a/ACg8ocJYh5P1TkHk97jtQx1WlWSqcEoTAfb9QyVXieTFC0rvuyaS1rY=s128-c0x00000000-cc-rp-mo"
+      },
+      "publishTime": "2026-02-05T05:59:40.845054759Z",
+      "flagContentUri": "https://www.google.com/local/content/rap/report?postId=Ci9DQUlRQUNvZENodHljRjlvT21KSE1rWktRMWgzZGpOTGNtVlhiVWhaTUhsVlZXYxAB&d=17924085&t=1",
+      "googleMapsUri": "https://www.google.com/maps/reviews/data=!4m6!14m5!1m4!2m3!1sCi9DQUlRQUNvZENodHljRjlvT21KSE1rWktRMWgzZGpOTGNtVlhiVWhaTUhsVlZXYxAB!2m1!1s0x391a82a5279cfd61:0x710934a3e8236970"
+    },
+    {
+      "name": "places/ChIJYf2cJ6WCGjkRcGkj6KM0CXE/reviews/Ci9DQUlRQUNvZENodHljRjlvT2tSWVVHZFhkMWh6TVZacGJIZEhkSGhXZWpWaE1XYxAB",
+      "relativePublishTimeDescription": "9 months ago",
+      "rating": 5,
+      "text": {
+        "text": "I am a regular patient of sai dental clinic. My wife and mother took treatment from them and they are very satisfied . I also had an implant and now my cap is delivered. I am very happy with the quality of service, cleanliness, and the expert advice that they provide..",
+        "languageCode": "en"
+      },
+      "originalText": {
+        "text": "I am a regular patient of sai dental clinic. My wife and mother took treatment from them and they are very satisfied . I also had an implant and now my cap is delivered. I am very happy with the quality of service, cleanliness, and the expert advice that they provide..",
+        "languageCode": "en"
+      },
+      "authorAttribution": {
+        "displayName": "Rajveer Sandhu",
+        "uri": "https://www.google.com/maps/contrib/103592632514279243688/reviews",
+        "photoUri": "https://lh3.googleusercontent.com/a-/ALV-UjX0SBtkXJGtLoORLIQSpvQxJAywEfcoyFD300km5J8Yp3hB1rA1=s128-c0x00000000-cc-rp-mo"
+      },
+      "publishTime": "2025-07-31T07:37:06.325462665Z",
+      "flagContentUri": "https://www.google.com/local/content/rap/report?postId=Ci9DQUlRQUNvZENodHljRjlvT2tSWVVHZFhkMWh6TVZacGJIZEhkSGhXZWpWaE1XYxAB&d=17924085&t=1",
+      "googleMapsUri": "https://www.google.com/maps/reviews/data=!4m6!14m5!1m4!2m3!1sCi9DQUlRQUNvZENodHljRjlvT2tSWVVHZFhkMWh6TVZacGJIZEhkSGhXZWpWaE1XYxAB!2m1!1s0x391a82a5279cfd61:0x710934a3e8236970"
+    },
+    {
+      "name": "places/ChIJYf2cJ6WCGjkRcGkj6KM0CXE/reviews/Ci9DQUlRQUNvZENodHljRjlvT21GcUxYTTNMVjg1WTFrNVRXZG5hVUl5YjBremFWRRAB",
+      "relativePublishTimeDescription": "8 months ago",
+      "rating": 5,
+      "text": {
+        "text": "I visited once at sai dental clinic and had great experience....my daughter got her treatment from this clinic ...bohot acha lga hme yahaka treatment...doctors b bohot helpful hai\nThankyou to Dr.Madhukar n Dr.Jyotu",
+        "languageCode": "en"
+      },
+      "originalText": {
+        "text": "I visited once at sai dental clinic and had great experience....my daughter got her treatment from this clinic ...bohot acha lga hme yahaka treatment...doctors b bohot helpful hai\nThankyou to Dr.Madhukar n Dr.Jyotu",
+        "languageCode": "en"
+      },
+      "authorAttribution": {
+        "displayName": "Amit kumar Xll Med",
+        "uri": "https://www.google.com/maps/contrib/116923124301685888879/reviews",
+        "photoUri": "https://lh3.googleusercontent.com/a/ACg8ocKUro9XR9Mvyh1yk8eM3R_kn8KjUTQC09_AGAcefLD-gdmhow=s128-c0x00000000-cc-rp-mo"
+      },
+      "publishTime": "2025-08-10T04:53:32.423466243Z",
+      "flagContentUri": "https://www.google.com/local/content/rap/report?postId=Ci9DQUlRQUNvZENodHljRjlvT21GcUxYTTNMVjg1WTFrNVRXZG5hVUl5YjBremFWRRAB&d=17924085&t=1",
+      "googleMapsUri": "https://www.google.com/maps/reviews/data=!4m6!14m5!1m4!2m3!1sCi9DQUlRQUNvZENodHljRjlvT21GcUxYTTNMVjg1WTFrNVRXZG5hVUl5YjBremFWRRAB!2m1!1s0x391a82a5279cfd61:0x710934a3e8236970"
+    },
+    {
+      "name": "places/ChIJYf2cJ6WCGjkRcGkj6KM0CXE/reviews/Ci9DQUlRQUNvZENodHljRjlvT21SamRWOUNWekpmU3pWTE1FZG9kMWhaVVhGdWNWRRAB",
+      "relativePublishTimeDescription": "9 months ago",
+      "rating": 5,
+      "text": {
+        "text": "Had a great experience at Sai dental clinic.\nVisiting them since last 12 years and got my treatment done .\nDoctors are great in dealing with patients .\nDefinitely recommend this place .",
+        "languageCode": "en"
+      },
+      "originalText": {
+        "text": "Had a great experience at Sai dental clinic.\nVisiting them since last 12 years and got my treatment done .\nDoctors are great in dealing with patients .\nDefinitely recommend this place .",
+        "languageCode": "en"
+      },
+      "authorAttribution": {
+        "displayName": "Pooja Maurya",
+        "uri": "https://www.google.com/maps/contrib/114687253154330595747/reviews",
+        "photoUri": "https://lh3.googleusercontent.com/a/ACg8ocLicViaUPakCmuFu51AW-gQ6QsAb1E7adZhQOQJOkc4zRPlXQ=s128-c0x00000000-cc-rp-mo"
+      },
+      "publishTime": "2025-07-24T06:22:23.614992988Z",
+      "flagContentUri": "https://www.google.com/local/content/rap/report?postId=Ci9DQUlRQUNvZENodHljRjlvT21SamRWOUNWekpmU3pWTE1FZG9kMWhaVVhGdWNWRRAB&d=17924085&t=1",
+      "googleMapsUri": "https://www.google.com/maps/reviews/data=!4m6!14m5!1m4!2m3!1sCi9DQUlRQUNvZENodHljRjlvT21SamRWOUNWekpmU3pWTE1FZG9kMWhaVVhGdWNWRRAB!2m1!1s0x391a82a5279cfd61:0x710934a3e8236970"
+    }
+  ],
+  "photos": [
+    {
+      "name": "places/ChIJYf2cJ6WCGjkRcGkj6KM0CXE/photos/Ab43m-v4N0zde1BCg912pxlbK8ik9bYK0oYXJm_aJpdZnTmAi_ZtxVAEMYsLk7UUzf_5uoLqFFEeOgt4-K4nDacBWrT8k74IA2jZuSoc7RYhimKI3h0P65la-3BOhoIbs-5IihYvc4At33hwHARsJGGraNHnT_hztADAEBFskOmjvMzQKRNC6_t7aZEYP5GYTIRiuFXnmrs6EjGFswBVIXVU6KJQLnauq-xMEBROsCio4DQl2mmh0g2Pq3BeCxkUTXwS7CK0ryV-pqdoZt5gRN6OiseGqrnSwEdGLh7W7dCJdBUvpA",
+      "widthPx": 4032,
+      "heightPx": 3024,
+      "authorAttributions": [
+        {
+          "displayName": "𝗦𝗮𝗶 𝗗𝗲𝗻𝘁𝗮𝗹 𝗖𝗹𝗶𝗻𝗶𝗰 - Best Dentist Near Me in Ludhiana",
+          "uri": "https://maps.google.com/maps/contrib/108767241732826235204",
+          "photoUri": "https://lh3.googleusercontent.com/a-/ALV-UjWRT-s97PAdQfv2XX50LZgRpyqwgN0buxwGDgP4bfJclBnpFf0=s100-p-k-no-mo"
+        }
+      ],
+      "flagContentUri": "https://www.google.com/local/imagery/report/?cb_client=maps_api_places.places_api&image_key=!1e10!2sAF1QipNSvKqP1RZo_hp8XjJwtv5cZKHQDiSouj9PFbgi&hl=en-US",
+      "googleMapsUri": "https://www.google.com/maps/place//data=!3m4!1e2!3m2!1sAF1QipNSvKqP1RZo_hp8XjJwtv5cZKHQDiSouj9PFbgi!2e10!4m2!3m1!1s0x391a82a5279cfd61:0x710934a3e8236970"
+    },
+    {
+      "name": "places/ChIJYf2cJ6WCGjkRcGkj6KM0CXE/photos/Ab43m-t_g6hsssp2Ct3mqq0x_DosXTrXSbajJtyH5a5FHTAVWZy6kd3tQqrlKAc-gErHm3Xeis1dGs5l4qbBHS3PDo25cGGq2deI59x6Yfzpp49PK3MjO-bz0cnm10Vduiq-bgifoJUvjo-7n34BW8efvzGm5Vq1Zv6w9S8B1gDqM3xhaa4fRamQvt7R9LafKYa2ikGNUD-hX3JCKRTRN9jLaxHYsU_vDiJaUX5yjPYWON6H4Cfg7a-4VTVQbIWYXYDqCgZMuDyKSMF6ksrwGGuTBICIDJbMrA_N-vRZCrHqYSstjg",
+      "widthPx": 4032,
+      "heightPx": 3024,
+      "authorAttributions": [
+        {
+          "displayName": "𝗦𝗮𝗶 𝗗𝗲𝗻𝘁𝗮𝗹 𝗖𝗹𝗶𝗻𝗶𝗰 - Best Dentist Near Me in Ludhiana",
+          "uri": "https://maps.google.com/maps/contrib/108767241732826235204",
+          "photoUri": "https://lh3.googleusercontent.com/a-/ALV-UjWRT-s97PAdQfv2XX50LZgRpyqwgN0buxwGDgP4bfJclBnpFf0=s100-p-k-no-mo"
+        }
+      ],
+      "flagContentUri": "https://www.google.com/local/imagery/report/?cb_client=maps_api_places.places_api&image_key=!1e10!2sAF1QipMQcnoVXAswzpWQP2QCkNCZxg6W-4D0YaTqJWw5&hl=en-US",
+      "googleMapsUri": "https://www.google.com/maps/place//data=!3m4!1e2!3m2!1sAF1QipMQcnoVXAswzpWQP2QCkNCZxg6W-4D0YaTqJWw5!2e10!4m2!3m1!1s0x391a82a5279cfd61:0x710934a3e8236970"
+    },
+    {
+      "name": "places/ChIJYf2cJ6WCGjkRcGkj6KM0CXE/photos/Ab43m-sSAwFfwWIJSpypdoa4clwjVbuQe44kucaEnyxPRYgVBk-IMm1T2KgNSPpvuogHOzw6LrNZrOe74HGb5BpdgefnoRd72kECpZ_CopZpq2z1ENMeH_XBWLGZsKsq2PRXaDaVnD7bfAT14ojO1_-qGnrYXuoLr8UN90Xv7iTflyDwl1qXORUSP0QohIYW6fmCGW5gw4ZWk3_PhOVSMSWWAhnwy8uaQ6_nIDQs3JbvfCUgiCqShTgOsaUfIh8CdIEPdmmfkiJi3M3YhLDJ_qokjQ4HS3QLtQh9dD2rwmdiEETocw",
+      "widthPx": 2931,
+      "heightPx": 3024,
+      "authorAttributions": [
+        {
+          "displayName": "𝗦𝗮𝗶 𝗗𝗲𝗻𝘁𝗮𝗹 𝗖𝗹𝗶𝗻𝗶𝗰 - Best Dentist Near Me in Ludhiana",
+          "uri": "https://maps.google.com/maps/contrib/108767241732826235204",
+          "photoUri": "https://lh3.googleusercontent.com/a-/ALV-UjWRT-s97PAdQfv2XX50LZgRpyqwgN0buxwGDgP4bfJclBnpFf0=s100-p-k-no-mo"
+        }
+      ],
+      "flagContentUri": "https://www.google.com/local/imagery/report/?cb_client=maps_api_places.places_api&image_key=!1e10!2sAF1QipNTCVRL5F08esjfOwzCAFDCi2kCqowFSBJueTNa&hl=en-US",
+      "googleMapsUri": "https://www.google.com/maps/place//data=!3m4!1e2!3m2!1sAF1QipNTCVRL5F08esjfOwzCAFDCi2kCqowFSBJueTNa!2e10!4m2!3m1!1s0x391a82a5279cfd61:0x710934a3e8236970"
+    },
+    {
+      "name": "places/ChIJYf2cJ6WCGjkRcGkj6KM0CXE/photos/Ab43m-uFp7eceNXs0dsd9Pd2Q2ZQwDdJh8bEe62s6SWqxxozw7SvQHmnI60x6JuFlhcrjqi-ZNwenBa-yEpbqLnvtIwfA2wOCn5NhAscSrrRYMMxQfSnjuQG7Kbirp1_0KwpD_B73-XsYm5EpkNyAkF9YJxQ9nlVSU13L89drkVasvDHlCBhc9cyKrjW9SQGIdpyqCmbSRnzVmoTk0LO1Wpy8tvZuLJO7-nOLfV7s58RUF-l8jS_5ies86mBYRrVUc37wsx3TLNFbnfGP_MYA6Zs0uV4fJkTsjGY9teQn5eo25lBWA",
+      "widthPx": 1242,
+      "heightPx": 1241,
+      "authorAttributions": [
+        {
+          "displayName": "𝗦𝗮𝗶 𝗗𝗲𝗻𝘁𝗮𝗹 𝗖𝗹𝗶𝗻𝗶𝗰 - Best Dentist Near Me in Ludhiana",
+          "uri": "https://maps.google.com/maps/contrib/108767241732826235204",
+          "photoUri": "https://lh3.googleusercontent.com/a-/ALV-UjWRT-s97PAdQfv2XX50LZgRpyqwgN0buxwGDgP4bfJclBnpFf0=s100-p-k-no-mo"
+        }
+      ],
+      "flagContentUri": "https://www.google.com/local/imagery/report/?cb_client=maps_api_places.places_api&image_key=!1e10!2sAF1QipNcVuqpq-IOYEbgp54tHHCGL7Og1CVjXIrVxTg0&hl=en-US",
+      "googleMapsUri": "https://www.google.com/maps/place//data=!3m4!1e2!3m2!1sAF1QipNcVuqpq-IOYEbgp54tHHCGL7Og1CVjXIrVxTg0!2e10!4m2!3m1!1s0x391a82a5279cfd61:0x710934a3e8236970"
+    },
+    {
+      "name": "places/ChIJYf2cJ6WCGjkRcGkj6KM0CXE/photos/Ab43m-v4VQ6lR-JL47ADpJrjt5Uuipb4Xe6_hum8R63m5EqD5lqkkxi9ByWchCfTe2Ixh8tNE9qvoYwoHVUyhzJ-e-fd7E42sl_NzsLXvqAwXl_hAEIlUL2ZnOtnsCkUHXKKw2YZbJXEjHdjwmIRDwNnfkeAYdsFZ_GxBJooY-I2ICAZoUFDdVoPwIFFizI8UCINSfM9pNyWXESECx26OBrKYewoCamMAT8Robz73ua39SKIduz8FMJaEg6ZmfBYi9Pqy5y8ebaAkyskown7qs92QdsfgQJUyfQ1-jQ-pGKtUQnN0w",
+      "widthPx": 1146,
+      "heightPx": 1145,
+      "authorAttributions": [
+        {
+          "displayName": "𝗦𝗮𝗶 𝗗𝗲𝗻𝘁𝗮𝗹 𝗖𝗹𝗶𝗻𝗶𝗰 - Best Dentist Near Me in Ludhiana",
+          "uri": "https://maps.google.com/maps/contrib/108767241732826235204",
+          "photoUri": "https://lh3.googleusercontent.com/a-/ALV-UjWRT-s97PAdQfv2XX50LZgRpyqwgN0buxwGDgP4bfJclBnpFf0=s100-p-k-no-mo"
+        }
+      ],
+      "flagContentUri": "https://www.google.com/local/imagery/report/?cb_client=maps_api_places.places_api&image_key=!1e10!2sAF1QipOJPH-pLqdBaXXfHVxJcKoSJ1jUdRi4wigdsCXO&hl=en-US",
+      "googleMapsUri": "https://www.google.com/maps/place//data=!3m4!1e2!3m2!1sAF1QipOJPH-pLqdBaXXfHVxJcKoSJ1jUdRi4wigdsCXO!2e10!4m2!3m1!1s0x391a82a5279cfd61:0x710934a3e8236970"
+    },
+    {
+      "name": "places/ChIJYf2cJ6WCGjkRcGkj6KM0CXE/photos/Ab43m-sCUDiNQI56Y17yWOS_6MJ7xakIf45PN8U6sN5fudwqqlnhIX404K0vfe9C6Qzz5zL_XVfyvkKw1ZmZgBtVJsO3XaCohSPhnxqqwv-HymXEPpr13CIzepr4nf_Z3KsWXG1IDT6joNPBWCMDzQr6ov2k0wX6VK_arw6XB6vhYB2po3HzHTJdhAlHLg--K9LfzUUdbrFYGzjMr9HtuswMIys7l0q3qiO4GDrPIGF-ftPJX1bmt-HIPbETjHDcMioQted1l6lQircIaMIDWj--NpGYBuhAodRzWH1w_KuLs4yb4Q",
+      "widthPx": 3024,
+      "heightPx": 4032,
+      "authorAttributions": [
+        {
+          "displayName": "𝗦𝗮𝗶 𝗗𝗲𝗻𝘁𝗮𝗹 𝗖𝗹𝗶𝗻𝗶𝗰 - Best Dentist Near Me in Ludhiana",
+          "uri": "https://maps.google.com/maps/contrib/108767241732826235204",
+          "photoUri": "https://lh3.googleusercontent.com/a-/ALV-UjWRT-s97PAdQfv2XX50LZgRpyqwgN0buxwGDgP4bfJclBnpFf0=s100-p-k-no-mo"
+        }
+      ],
+      "flagContentUri": "https://www.google.com/local/imagery/report/?cb_client=maps_api_places.places_api&image_key=!1e10!2sAF1QipO48GHc86qW-AEBuKHPcvK7XtN8QV2fsS7ojdMX&hl=en-US",
+      "googleMapsUri": "https://www.google.com/maps/place//data=!3m4!1e2!3m2!1sAF1QipO48GHc86qW-AEBuKHPcvK7XtN8QV2fsS7ojdMX!2e10!4m2!3m1!1s0x391a82a5279cfd61:0x710934a3e8236970"
+    },
+    {
+      "name": "places/ChIJYf2cJ6WCGjkRcGkj6KM0CXE/photos/Ab43m-vT6N4f7GzNuxyqpOo4LrzM8t2_1ZWdWmh3e6OMxpaimJfv6WMh7Q1PFpq67J5MBjFbiUfq2zpTl_Xe0btMq3H25K-2h1roJTPNtaI8jevzAb6uuXdWJY0jivpDqzEa6ky2xNmELfd5FYU8qPi1un74idNvF0ZnUKZOPTNtdDEt0msre1tbUb2L__c41ySpscJTbTsyv2SjC3eqwnVy0hlKycC0C2i3U72rX2BvU_A_4HAWXUW7LqNtqhuOlhP3JqZHhrzLwbKBvII1vkcJ8lWuvVjYJ7Ljrj1_92xCAz3lPg",
+      "widthPx": 960,
+      "heightPx": 1280,
+      "authorAttributions": [
+        {
+          "displayName": "𝗦𝗮𝗶 𝗗𝗲𝗻𝘁𝗮𝗹 𝗖𝗹𝗶𝗻𝗶𝗰 - Best Dentist Near Me in Ludhiana",
+          "uri": "https://maps.google.com/maps/contrib/108767241732826235204",
+          "photoUri": "https://lh3.googleusercontent.com/a-/ALV-UjWRT-s97PAdQfv2XX50LZgRpyqwgN0buxwGDgP4bfJclBnpFf0=s100-p-k-no-mo"
+        }
+      ],
+      "flagContentUri": "https://www.google.com/local/imagery/report/?cb_client=maps_api_places.places_api&image_key=!1e10!2sAF1QipMIGifD3MIxGyXJDNzBB9M2L5aW8vfKiNjtwVXl&hl=en-US",
+      "googleMapsUri": "https://www.google.com/maps/place//data=!3m4!1e2!3m2!1sAF1QipMIGifD3MIxGyXJDNzBB9M2L5aW8vfKiNjtwVXl!2e10!4m2!3m1!1s0x391a82a5279cfd61:0x710934a3e8236970"
+    },
+    {
+      "name": "places/ChIJYf2cJ6WCGjkRcGkj6KM0CXE/photos/Ab43m-ssDNaADjSl4SNkbX2-H6X4fOV68Hv2EufCRkM3fhO_7_00Od-IY5wtmUK103Q3uV4U5ZQNxNr_SHhkyl4kEX5ODHkTWUoLQ1rPCSpG5GklHT7AFK8R-XGDut-xGA8wNYn4YYCAhnxaoF5qpPXeBBo6PyiFyXEewZZ2o4eQOQdxKQZUGjr2cgfJAFAnjZW9CYzlMx731Fj2qzYQDsn5eZiLMoik4CZ0YWmeo6oV5qaUP7Ju5HUZVbA_cTsg1Ei5abNi1t4FKP5YoQAIp5O4BQ3C7VnW2Vfid2r24xmPlOHZIw",
+      "widthPx": 4027,
+      "heightPx": 2616,
+      "authorAttributions": [
+        {
+          "displayName": "𝗦𝗮𝗶 𝗗𝗲𝗻𝘁𝗮𝗹 𝗖𝗹𝗶𝗻𝗶𝗰 - Best Dentist Near Me in Ludhiana",
+          "uri": "https://maps.google.com/maps/contrib/108767241732826235204",
+          "photoUri": "https://lh3.googleusercontent.com/a-/ALV-UjWRT-s97PAdQfv2XX50LZgRpyqwgN0buxwGDgP4bfJclBnpFf0=s100-p-k-no-mo"
+        }
+      ],
+      "flagContentUri": "https://www.google.com/local/imagery/report/?cb_client=maps_api_places.places_api&image_key=!1e10!2sAF1QipMIIcAKoFqsI4z52DHs9HonBFO3s4j7o4VJLZ2q&hl=en-US",
+      "googleMapsUri": "https://www.google.com/maps/place//data=!3m4!1e2!3m2!1sAF1QipMIIcAKoFqsI4z52DHs9HonBFO3s4j7o4VJLZ2q!2e10!4m2!3m1!1s0x391a82a5279cfd61:0x710934a3e8236970"
+    },
+    {
+      "name": "places/ChIJYf2cJ6WCGjkRcGkj6KM0CXE/photos/Ab43m-vSsUCrHCUSE6qy939pDgvxnayrUHFjE-Bua-Bq4FO1QAjhEiQzu0on5Ucjmj7jBHhu2XIqzel7cBQFPyovoTqaamNx4ifpQmBeG3ye0z8hAZBpEL6dp4_J8PRWAhD7jSDfUlw7BSizIIYgdFb3SAuqhKI4V-mRFsucT6BmSgtNNoTR3BXkLetX70Awh37T30j0OFeIhLMAsoRS8cWYExQxKKfiLP4e447Wd2dgZguHYepV2Td8n6s9Mkl9TUx2ShMl9JMISBVwZHWpwLRnNnq2lqZOwV8r6o6Se1zXgCnBwA",
+      "widthPx": 3024,
+      "heightPx": 4032,
+      "authorAttributions": [
+        {
+          "displayName": "𝗦𝗮𝗶 𝗗𝗲𝗻𝘁𝗮𝗹 𝗖𝗹𝗶𝗻𝗶𝗰 - Best Dentist Near Me in Ludhiana",
+          "uri": "https://maps.google.com/maps/contrib/108767241732826235204",
+          "photoUri": "https://lh3.googleusercontent.com/a-/ALV-UjWRT-s97PAdQfv2XX50LZgRpyqwgN0buxwGDgP4bfJclBnpFf0=s100-p-k-no-mo"
+        }
+      ],
+      "flagContentUri": "https://www.google.com/local/imagery/report/?cb_client=maps_api_places.places_api&image_key=!1e10!2sAF1QipOF4ibnldrLwafsnxeF14mrAwTNnAPFMfvNO_Dr&hl=en-US",
+      "googleMapsUri": "https://www.google.com/maps/place//data=!3m4!1e2!3m2!1sAF1QipOF4ibnldrLwafsnxeF14mrAwTNnAPFMfvNO_Dr!2e10!4m2!3m1!1s0x391a82a5279cfd61:0x710934a3e8236970"
+    },
+    {
+      "name": "places/ChIJYf2cJ6WCGjkRcGkj6KM0CXE/photos/Ab43m-ssIN1E7NQkvuHWQofNV6N7DIbcDjVTEPynAB7T1VSNgiWtKe28Z8NinmX2TL-kGNCTXINbX_fFZwUlHRZnAmXKEzPMU94sSoSO9b6xUFWSf6Ir0F9mDOBwq_vV-dSIsYzj0lTdKdBwcbokYWKJDvxObJJzBKEUK2h9YoC0SRirbzs1hDKLCTq9zafyhJWo_rebhCuO7NH6QRfhPYej0clTMJ_bS6a1oTHhYtEtTlu3rxGqiSyf90gbH98qS-44QyPxliAiH9UGMW1k9V0OnhEJ_1vvU2WFawrlYdWhT_QeRQ",
+      "widthPx": 3024,
+      "heightPx": 4032,
+      "authorAttributions": [
+        {
+          "displayName": "𝗦𝗮𝗶 𝗗𝗲𝗻𝘁𝗮𝗹 𝗖𝗹𝗶𝗻𝗶𝗰 - Best Dentist Near Me in Ludhiana",
+          "uri": "https://maps.google.com/maps/contrib/108767241732826235204",
+          "photoUri": "https://lh3.googleusercontent.com/a-/ALV-UjWRT-s97PAdQfv2XX50LZgRpyqwgN0buxwGDgP4bfJclBnpFf0=s100-p-k-no-mo"
+        }
+      ],
+      "flagContentUri": "https://www.google.com/local/imagery/report/?cb_client=maps_api_places.places_api&image_key=!1e10!2sAF1QipPShBQtdSkGmCPqM7_aukEeQNcgfkjrGgL6r9lw&hl=en-US",
+      "googleMapsUri": "https://www.google.com/maps/place//data=!3m4!1e2!3m2!1sAF1QipPShBQtdSkGmCPqM7_aukEeQNcgfkjrGgL6r9lw!2e10!4m2!3m1!1s0x391a82a5279cfd61:0x710934a3e8236970"
+    }
+  ]
+}

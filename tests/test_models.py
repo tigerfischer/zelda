@@ -126,3 +126,29 @@ def test_converter_preserves_unknown_fields_in_raw_json(fixtures_dir: Path):
 
     assert lead.raw_json == raw
     assert lead.raw_json["_unknownFutureField"] == raw["_unknownFutureField"]
+
+
+def test_real_ludhiana_response_parses(fixtures_dir: Path):
+    """Drift detector: if the live Places API changes shape and our model
+    can no longer parse it, this test fires immediately. The fixture is
+    captured by `scripts/smoke_places.py`."""
+    import pytest
+
+    path = fixtures_dir / "place_details_real_ludhiana.json"
+    if not path.exists():
+        pytest.skip(f"Real fixture not captured yet — run scripts/smoke_places.py")
+
+    raw = json.loads(path.read_text())
+    details = PlaceDetails.model_validate(raw)
+    lead = raw_lead_from_place_details(raw, city="Ludhiana")
+
+    assert details.id == raw["id"]
+    assert lead.place_id == raw["id"]
+    assert lead.city == "Ludhiana"
+    assert lead.raw_json == raw
+    # Optional fields may be None in real data — that's fine, but the
+    # ones the API actually returned should make it onto the lead.
+    if "rating" in raw:
+        assert lead.rating == raw["rating"]
+    if "userRatingCount" in raw:
+        assert lead.review_count == raw["userRatingCount"]
