@@ -8,8 +8,13 @@ class Settings(BaseSettings):
     """Runtime configuration. Loads from `.env` and the process environment."""
 
     google_places_api_key: str
-    google_application_credentials: Path
     google_drive_folder_id: str
+
+    # OAuth user credentials for Drive + Sheets.
+    # `client_secrets` is the JSON downloaded from GCP > Credentials > OAuth client ID.
+    # `token_cache` is a file we create on first auth and reuse thereafter.
+    google_oauth_client_secrets: Path = Path("secrets/oauth-client.json")
+    google_oauth_token_cache: Path = Path("secrets/oauth-token.json")
 
     data_dir: Path = Path("data")
     db_path: Path | None = None
@@ -29,13 +34,13 @@ class Settings(BaseSettings):
             raise ValueError("must be set and non-empty")
         return v.strip()
 
-    @field_validator("google_application_credentials")
+    @field_validator("google_oauth_client_secrets")
     @classmethod
-    def _credentials_file_exists(cls, v: Path) -> Path:
+    def _client_secrets_file_exists(cls, v: Path) -> Path:
         if not v.exists():
-            raise ValueError(f"credentials file not found at: {v}")
+            raise ValueError(f"OAuth client secrets file not found at: {v}")
         if not v.is_file():
-            raise ValueError(f"credentials path is not a file: {v}")
+            raise ValueError(f"OAuth client secrets path is not a file: {v}")
         return v
 
     @model_validator(mode="after")

@@ -27,8 +27,10 @@ from zelda.gateways.google_drive import GoogleDriveGateway
 
 def main() -> int:
     settings = Settings()
-    gw = GoogleDriveGateway.from_service_account_file(
-        settings.google_application_credentials, settings.google_drive_folder_id
+    gw = GoogleDriveGateway.from_oauth_file(
+        settings.google_oauth_client_secrets,
+        settings.google_oauth_token_cache,
+        settings.google_drive_folder_id,
     )
 
     test_folder_name = (

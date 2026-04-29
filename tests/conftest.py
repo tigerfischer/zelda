@@ -5,8 +5,9 @@ import pytest
 
 _ZELDA_ENV_VARS = (
     "GOOGLE_PLACES_API_KEY",
-    "GOOGLE_APPLICATION_CREDENTIALS",
     "GOOGLE_DRIVE_FOLDER_ID",
+    "GOOGLE_OAUTH_CLIENT_SECRETS",
+    "GOOGLE_OAUTH_TOKEN_CACHE",
     "DATA_DIR",
     "DB_PATH",
     "RAW_ARTIFACTS_DIR",
@@ -23,9 +24,9 @@ def _isolate_zelda_env(monkeypatch):
 
 @pytest.fixture
 def fake_credentials_file(tmp_path: Path) -> Path:
-    """A throwaway file that satisfies the GOOGLE_APPLICATION_CREDENTIALS
-    file-must-exist validator."""
-    cred = tmp_path / "fake-sa.json"
+    """A throwaway JSON file that satisfies any 'file-must-exist'
+    config validator (e.g. GOOGLE_OAUTH_CLIENT_SECRETS)."""
+    cred = tmp_path / "fake-creds.json"
     cred.write_text("{}")
     return cred
 

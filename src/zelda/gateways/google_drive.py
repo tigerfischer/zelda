@@ -25,7 +25,10 @@ from pathlib import Path
 from typing import Any, Iterable
 
 import gspread
+from google.auth.transport.requests import Request
 from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from gspread.utils import rowcol_to_a1
@@ -67,10 +70,43 @@ class GoogleDriveGateway:
         credentials_path: Path | str,
         root_folder_id: str,
     ) -> "GoogleDriveGateway":
-        """Standard production constructor."""
+        """Build via a service account JSON key.
+
+        Note: service accounts have 0 GB of personal storage. They can
+        only create files when the target folder lives in a Google
+        Workspace Shared Drive (where storage is pooled). For personal
+        Google accounts, prefer `from_oauth_file`.
+        """
         creds = service_account.Credentials.from_service_account_file(
             str(credentials_path),
             scopes=list(_SCOPES),
+        )
+        drive = build("drive", "v3", credentials=creds, cache_discovery=False)
+        gspread_client = gspread.authorize(creds)
+        return cls(
+            drive_client=drive,
+            gspread_client=gspread_client,
+            root_folder_id=root_folder_id,
+        )
+
+    @classmethod
+    def from_oauth_file(
+        cls,
+        client_secrets_path: Path | str,
+        token_cache_path: Path | str,
+        root_folder_id: str,
+    ) -> "GoogleDriveGateway":
+        """Build via OAuth user credentials (the script acts as the user).
+
+        Files end up in the user's personal Drive, charged against the
+        user's free 15 GB quota — no Workspace required.
+
+        On first call: opens a browser for the user to authorize, then
+        caches a refresh token at `token_cache_path`. Subsequent calls
+        reuse the cached token (refreshing the access token silently).
+        """
+        creds = _load_or_authorize_oauth_creds(
+            Path(client_secrets_path), Path(token_cache_path)
         )
         drive = build("drive", "v3", credentials=creds, cache_discovery=False)
         gspread_client = gspread.authorize(creds)
@@ -396,6 +432,56 @@ class GoogleDriveGateway:
 
 
 # ── module-private helpers ──────────────────────────────────────────
+
+
+def _load_or_authorize_oauth_creds(
+    client_secrets_path: Path,
+    token_cache_path: Path,
+) -> Credentials:
+    """Load cached OAuth user creds; refresh if expired; otherwise run
+    the InstalledAppFlow (opens a browser) and cache the result.
+
+    Idempotent across runs: only the first run on a given machine pops
+    a browser. Subsequent runs reuse the refresh token silently.
+    """
+    if not client_secrets_path.exists():
+        raise FileNotFoundError(
+            f"OAuth client secrets file not found at {client_secrets_path}. "
+            "Create OAuth credentials in GCP Console > APIs & Services > "
+            "Credentials > Create credentials > OAuth client ID > Desktop app."
+        )
+
+    creds: Credentials | None = None
+    if token_cache_path.exists():
+        creds = Credentials.from_authorized_user_file(
+            str(token_cache_path), list(_SCOPES)
+        )
+
+    if creds and creds.valid:
+        return creds
+
+    if creds and creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+        _persist_oauth_token(creds, token_cache_path)
+        return creds
+
+    # First time on this machine — pop a browser.
+    logger.info(
+        "drive.oauth_first_run a browser tab will open for you to authorize "
+        "Zelda; the resulting refresh token will be cached at {path}",
+        path=str(token_cache_path),
+    )
+    flow = InstalledAppFlow.from_client_secrets_file(
+        str(client_secrets_path), list(_SCOPES)
+    )
+    creds = flow.run_local_server(port=0)
+    _persist_oauth_token(creds, token_cache_path)
+    return creds
+
+
+def _persist_oauth_token(creds: Credentials, token_cache_path: Path) -> None:
+    token_cache_path.parent.mkdir(parents=True, exist_ok=True)
+    token_cache_path.write_text(creds.to_json())
 
 
 def _row_dict_to_list(row: dict[str, Any], header: list[str]) -> list[Any]:
