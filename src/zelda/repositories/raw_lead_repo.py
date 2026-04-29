@@ -148,6 +148,23 @@ class RawLeadRepository:
         )
         return cur.fetchone() is not None
 
+    def exists_many(self, place_ids: Iterable[str]) -> set[str]:
+        """Return the subset of `place_ids` that already exist in the DB.
+
+        Useful when the discover controller wants to filter a deduped
+        candidate list down to only-new place_ids in a single SQL round
+        trip (instead of N `exists()` calls).
+        """
+        ids = list(place_ids)
+        if not ids:
+            return set()
+        placeholders = ",".join("?" * len(ids))
+        cur = self._conn.execute(
+            f"SELECT place_id FROM raw_leads WHERE place_id IN ({placeholders})",
+            ids,
+        )
+        return {row[0] for row in cur.fetchall()}
+
     def get_by_id(self, place_id: str) -> RawLead | None:
         cur = self._conn.execute(
             "SELECT * FROM raw_leads WHERE place_id = ?",

@@ -142,6 +142,20 @@ def test_exists_true_after_upsert(repo: RawLeadRepository):
     assert repo.exists("ChIJ_X") is True
 
 
+def test_exists_many_returns_only_known_subset(repo: RawLeadRepository):
+    repo.upsert_many([_mk_lead("ChIJ_1"), _mk_lead("ChIJ_2")])
+    known = repo.exists_many(["ChIJ_1", "ChIJ_MISSING", "ChIJ_2", "ChIJ_OTHER"])
+    assert known == {"ChIJ_1", "ChIJ_2"}
+
+
+def test_exists_many_handles_empty_input(repo: RawLeadRepository):
+    assert repo.exists_many([]) == set()
+
+
+def test_exists_many_returns_empty_when_nothing_known(repo: RawLeadRepository):
+    assert repo.exists_many(["ChIJ_NOPE_1", "ChIJ_NOPE_2"]) == set()
+
+
 def test_get_by_id_returns_lead(repo: RawLeadRepository):
     repo.upsert_many([_mk_lead("ChIJ_X", name="Test")])
     lead = repo.get_by_id("ChIJ_X")
