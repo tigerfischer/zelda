@@ -18,7 +18,6 @@ Re-run policy:
 """
 
 import json
-import re
 import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -30,6 +29,7 @@ from loguru import logger
 from zelda.models.place import Place, raw_lead_from_place_details
 from zelda.models.raw_lead import RawLead
 from zelda.repositories.raw_lead_repo import RawLeadRepository
+from zelda.util import slugify
 
 
 DEFAULT_QUERIES: tuple[str, ...] = (
@@ -242,7 +242,7 @@ class DiscoverController:
     # ── helpers ──────────────────────────────────────────────────────
 
     def _artifact_path(self, city: str, run_id: str) -> Path:
-        return self._artifacts_dir / _slugify(city) / f"{run_id}.jsonl"
+        return self._artifacts_dir / slugify(city) / f"{run_id}.jsonl"
 
 
 def _make_run_id() -> str:
@@ -250,11 +250,3 @@ def _make_run_id() -> str:
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     suffix = secrets.token_hex(2)
     return f"{ts}-{suffix}"
-
-
-def _slugify(s: str) -> str:
-    """City name → safe path segment."""
-    s = s.strip().lower()
-    s = re.sub(r"[^\w-]+", "-", s)
-    s = re.sub(r"-+", "-", s).strip("-")
-    return s or "unknown"

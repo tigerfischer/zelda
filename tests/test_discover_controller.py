@@ -7,7 +7,6 @@ import pytest
 from zelda.controllers.discover import (
     DEFAULT_QUERIES,
     DiscoverController,
-    _slugify,
 )
 from zelda.models.place import Place
 from zelda.repositories.raw_lead_repo import RawLeadRepository
@@ -355,22 +354,6 @@ def test_run_rejects_negative_max_results(controller):
 def test_run_rejects_max_pages_below_one(controller):
     with pytest.raises(ValueError, match="max_pages"):
         controller.run("Ludhiana", max_pages_per_query=0)
-
-
-# ── slugify helper ───────────────────────────────────────────────────────
-
-
-def test_slugify_lowercases_and_dashes_spaces():
-    assert _slugify("New Delhi") == "new-delhi"
-    assert _slugify("  Ludhiana  ") == "ludhiana"
-
-
-def test_slugify_collapses_runs_of_unsafe_chars():
-    assert _slugify("Foo / Bar  --  Baz") == "foo-bar-baz"
-
-
-def test_slugify_falls_back_to_placeholder_on_empty():
-    assert _slugify("///") == "unknown"
 
 
 # ── default queries shape ────────────────────────────────────────────────
