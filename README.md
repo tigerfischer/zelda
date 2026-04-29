@@ -18,7 +18,11 @@ Prerequisite: Miniconda or Anaconda installed.
    conda env create -f environment.yml
    conda activate zelda
    ```
-5. Smoke-check the install:
+5. Install the headless Chromium browser used for review scraping (~150 MB, one-time):
+   ```
+   playwright install chromium
+   ```
+6. Smoke-check the install:
    ```
    python -c "import zelda; print(zelda.__version__)"
    python -m pytest
@@ -26,7 +30,7 @@ Prerequisite: Miniconda or Anaconda installed.
 
    Note: always invoke pytest as `python -m pytest`, not bare `pytest` — if homebrew (or another package manager) installed a global `pytest` binary, it can shadow the conda env's version on PATH.
 
-6. (Optional, on a fresh machine.) Pull existing leads from Drive into the empty local DB so you don't re-discover from scratch:
+7. (Optional, on a fresh machine.) Pull existing leads from Drive into the empty local DB so you don't re-discover from scratch:
    ```
    python -m zelda bootstrap --city Ludhiana
    ```
