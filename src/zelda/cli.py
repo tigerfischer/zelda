@@ -13,6 +13,7 @@ import argparse
 import sys
 
 from zelda.config import Settings
+from zelda.controllers.bootstrap import BootstrapController, BootstrapResult
 from zelda.controllers.discover import DiscoverController, DiscoverResult
 from zelda.controllers.sync import DriveSyncController, SyncResult
 from zelda.gateways.google_drive import GoogleDriveGateway
@@ -81,6 +82,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_sync = sub.add_parser("sync", help="push DB → Drive for a city")
     p_sync.add_argument("--city", required=True, help="City name, e.g. Ludhiana")
 
+    p_boot = sub.add_parser(
+        "bootstrap",
+        help="pull Drive → fresh local DB (cross-machine setup)",
+    )
+    p_boot.add_argument("--city", required=True, help="City name, e.g. Ludhiana")
+
     return parser
 
 
@@ -146,12 +153,44 @@ def cmd_sync(args: argparse.Namespace, settings: Settings) -> int:
     return 0 if not result.errors else 1
 
 
+def cmd_bootstrap(args: argparse.Namespace, settings: Settings) -> int:
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
+
+    drive = GoogleDriveGateway.from_oauth_file(
+        settings.google_oauth_client_secrets,
+        settings.google_oauth_token_cache,
+        settings.google_drive_folder_id,
+    )
+    repo = RawLeadRepository(settings.db_path)
+    try:
+        controller = BootstrapController(
+            drive=drive, repo=repo, artifacts_dir=settings.raw_artifacts_dir
+        )
+        result: BootstrapResult = controller.bootstrap_city(args.city)
+    finally:
+        repo.close()
+
+    print(
+        f"bootstrap {args.city}: "
+        f"drive_files={result.n_drive_artifacts} "
+        f"downloaded={result.n_files_downloaded} "
+        f"skipped_local={result.n_files_skipped_local} "
+        f"processed={result.n_files_processed} "
+        f"lines={result.n_lines_total} "
+        f"failed_lines={result.n_lines_failed} "
+        f"leads_upserted={result.n_leads_upserted} "
+        f"errors={len(result.errors)}"
+    )
+    return 0 if not result.errors else 1
+
+
 # ── entry point ─────────────────────────────────────────────────────
 
 
 _HANDLERS = {
     "discover": cmd_discover,
     "sync": cmd_sync,
+    "bootstrap": cmd_bootstrap,
 }
 
 

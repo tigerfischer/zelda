@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 
+from tests.fakes import FakeDriveGateway
 from zelda.controllers.sync import (
     ARTIFACTS_DRIVE_FOLDER,
     RAW_LEAD_SHEET_HEADER,
@@ -17,112 +18,6 @@ from zelda.repositories.raw_lead_repo import RawLeadRepository
 _T1 = datetime(2026, 4, 29, 10, 0, 0, tzinfo=timezone.utc)
 _T2 = _T1 + timedelta(hours=1)
 _T3 = _T1 + timedelta(hours=2)
-
-
-# ── fakes ────────────────────────────────────────────────────────────────
-
-
-class FakeDriveGateway:
-    """Stand-in for GoogleDriveGateway. Tracks calls and emulates the
-    folder/sheet/file world in memory."""
-
-    def __init__(self, root_folder_id: str = "root") -> None:
-        self.root_folder_id = root_folder_id
-        # (parent_id, name) → folder_id
-        self._folders: dict[tuple[str, str], str] = {}
-        # (parent_id, name) → sheet_id
-        self._sheets: dict[tuple[str, str], str] = {}
-        # folder_id → list of {id, name, mimeType}
-        self._files_in_folder: dict[str, list[dict[str, str]]] = {root_folder_id: []}
-        # call records
-        self.upsert_calls: list[dict[str, Any]] = []
-        self.upload_calls: list[dict[str, Any]] = []
-        self._next_id = 0
-
-    def _new_id(self, prefix: str) -> str:
-        self._next_id += 1
-        return f"{prefix}-{self._next_id}"
-
-    def find_or_create_subfolder(
-        self, name: str, *, parent_folder_id: str | None = None
-    ) -> str:
-        parent = parent_folder_id or self.root_folder_id
-        key = (parent, name)
-        if key in self._folders:
-            return self._folders[key]
-        new_id = self._new_id("folder")
-        self._folders[key] = new_id
-        self._files_in_folder.setdefault(parent, []).append(
-            {"id": new_id, "name": name, "mimeType": "application/vnd.google-apps.folder"}
-        )
-        self._files_in_folder.setdefault(new_id, [])
-        return new_id
-
-    def find_or_create_spreadsheet(
-        self, name: str, *, parent_folder_id: str | None = None
-    ) -> str:
-        parent = parent_folder_id or self.root_folder_id
-        key = (parent, name)
-        if key in self._sheets:
-            return self._sheets[key]
-        new_id = self._new_id("sheet")
-        self._sheets[key] = new_id
-        self._files_in_folder.setdefault(parent, []).append(
-            {"id": new_id, "name": name, "mimeType": "application/vnd.google-apps.spreadsheet"}
-        )
-        return new_id
-
-    def upsert_sheet_rows_by_key(
-        self,
-        spreadsheet_id: str,
-        *,
-        header: list[str],
-        rows: list[dict],
-        key_column: str,
-    ) -> dict[str, int]:
-        rows = list(rows)
-        self.upsert_calls.append(
-            {
-                "spreadsheet_id": spreadsheet_id,
-                "header": list(header),
-                "rows": rows,
-                "key_column": key_column,
-            }
-        )
-        # Naive: the fake doesn't track sheet contents; treat all as insert
-        return {"inserted": len(rows), "updated": 0}
-
-    def upload_file(
-        self,
-        local_path: Path | str,
-        *,
-        parent_folder_id: str | None = None,
-        drive_name: str | None = None,
-        mime_type: str = "application/octet-stream",
-    ) -> str:
-        parent = parent_folder_id or self.root_folder_id
-        name = drive_name or Path(local_path).name
-        new_id = self._new_id("file")
-        self._files_in_folder.setdefault(parent, []).append(
-            {"id": new_id, "name": name, "mimeType": mime_type}
-        )
-        self.upload_calls.append(
-            {
-                "local_path": str(local_path),
-                "parent_folder_id": parent,
-                "drive_name": name,
-                "mime_type": mime_type,
-            }
-        )
-        return new_id
-
-    def list_files_in_folder(
-        self, folder_id: str, *, mime_type: str | None = None
-    ) -> list[dict]:
-        files = self._files_in_folder.get(folder_id, [])
-        if mime_type:
-            files = [f for f in files if f.get("mimeType") == mime_type]
-        return list(files)
 
 
 # ── helpers + fixtures ───────────────────────────────────────────────────
@@ -372,8 +267,8 @@ def test_sync_skips_artifacts_already_on_drive(drive, repo, tmp_path):
     city_folder = drive.find_or_create_subfolder(
         "ludhiana", parent_folder_id=artifacts_root
     )
-    drive._files_in_folder[city_folder].append(
-        {"id": "preexisting", "name": "run-001.jsonl", "mimeType": "application/x-ndjson"}
+    drive.add_file_to_folder(
+        city_folder, "run-001.jsonl", '{"seeded": true}\n', mime_type="application/x-ndjson"
     )
 
     controller = DriveSyncController(drive=drive, repo=repo, artifacts_dir=artifacts_dir)

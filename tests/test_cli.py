@@ -107,6 +107,22 @@ def test_sync_requires_city():
         parser.parse_args(["sync"])
 
 
+# ── bootstrap subcommand ──────────────────────────────────────────────
+
+
+def test_bootstrap_basic_args():
+    parser = build_parser()
+    args = parser.parse_args(["bootstrap", "--city", "Ludhiana"])
+    assert args.command == "bootstrap"
+    assert args.city == "Ludhiana"
+
+
+def test_bootstrap_requires_city():
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["bootstrap"])
+
+
 # ── argument-type helpers ─────────────────────────────────────────────
 
 

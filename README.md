@@ -26,7 +26,11 @@ Prerequisite: Miniconda or Anaconda installed.
 
    Note: always invoke pytest as `python -m pytest`, not bare `pytest` — if homebrew (or another package manager) installed a global `pytest` binary, it can shadow the conda env's version on PATH.
 
-6. (Bootstrap-from-Drive: phase 9 — not yet built.) When you're on a brand-new machine and want to pull existing leads down from Drive into a fresh SQLite, this will be a one-shot `python -m zelda bootstrap --city CITY`. Until then, fresh machines start from an empty DB and re-discover from scratch.
+6. (Optional, on a fresh machine.) Pull existing leads from Drive into the empty local DB so you don't re-discover from scratch:
+   ```
+   python -m zelda bootstrap --city Ludhiana
+   ```
+   This downloads the JSONL artifacts from `raw-artifacts/{slug(city)}/` on Drive, reconstructs RawLeads from them (lossless — JSONL contains the full Place Details payload), and upserts into local SQLite. Idempotent on re-run.
 
 ## Commands
 
@@ -42,6 +46,11 @@ Runs Google Places Text Search across 7 dental queries for the given city, dedup
 python -m zelda sync --city CITY
 ```
 Pushes any rows in SQLite where `last_synced_at IS NULL OR last_modified_at > last_synced_at` to a Google Sheet named `Zelda — Raw Leads — Dentists — {City}` under the configured Drive folder, then mirrors any local JSONL artifacts to `raw-artifacts/{slug(city)}/` on Drive. Idempotent: re-running with no DB changes is a no-op.
+
+```
+python -m zelda bootstrap --city CITY
+```
+Reverse direction: Drive → local DB. Pulls JSONL artifacts from `raw-artifacts/{slug(city)}/` on Drive, reconstructs RawLead rows from each Place Details payload, and upserts into the local SQLite. Used on a fresh machine to inherit existing discovered leads without re-paying the Places API. Idempotent: skips JSONLs already on disk, repo upserts are no-ops if data is unchanged. After bootstrap, leads are marked synced — a follow-up `sync` call is also a no-op.
 
 ### Example flow
 
