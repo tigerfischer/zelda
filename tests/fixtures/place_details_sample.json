@@ -1,0 +1,60 @@
+{
+  "id": "ChIJ_SAMPLE_PLACE_ID_FOR_TESTS",
+  "displayName": {"text": "Sample Dental Clinic", "languageCode": "en"},
+  "formattedAddress": "123 Mall Road, Ludhiana, Punjab 141001, India",
+  "shortFormattedAddress": "123 Mall Road, Ludhiana",
+  "addressComponents": [
+    {"longText": "123", "shortText": "123", "types": ["street_number"]},
+    {"longText": "Mall Road", "shortText": "Mall Rd", "types": ["route"]},
+    {"longText": "Ludhiana", "shortText": "Ludhiana", "types": ["locality", "political"]},
+    {"longText": "Punjab", "shortText": "PB", "types": ["administrative_area_level_1", "political"]},
+    {"longText": "India", "shortText": "IN", "types": ["country", "political"]},
+    {"longText": "141001", "shortText": "141001", "types": ["postal_code"]}
+  ],
+  "location": {"latitude": 30.9009, "longitude": 75.8573},
+  "nationalPhoneNumber": "098765 43210",
+  "internationalPhoneNumber": "+91 98765 43210",
+  "websiteUri": "https://example-dental.in",
+  "googleMapsUri": "https://maps.google.com/?cid=123",
+  "rating": 4.6,
+  "userRatingCount": 87,
+  "businessStatus": "OPERATIONAL",
+  "primaryType": "dentist",
+  "types": ["dentist", "doctor", "health", "point_of_interest", "establishment"],
+  "priceLevel": "PRICE_LEVEL_MODERATE",
+  "editorialSummary": {
+    "text": "Modern dental practice offering general and cosmetic dentistry.",
+    "languageCode": "en"
+  },
+  "currentOpeningHours": {
+    "openNow": true,
+    "weekdayDescriptions": [
+      "Monday: 9:00 AM – 8:00 PM",
+      "Tuesday: 9:00 AM – 8:00 PM",
+      "Wednesday: 9:00 AM – 8:00 PM",
+      "Thursday: 9:00 AM – 8:00 PM",
+      "Friday: 9:00 AM – 8:00 PM",
+      "Saturday: 10:00 AM – 6:00 PM",
+      "Sunday: Closed"
+    ]
+  },
+  "photos": [
+    {"name": "places/ChIJ_SAMPLE/photos/abc123", "widthPx": 4032, "heightPx": 3024},
+    {"name": "places/ChIJ_SAMPLE/photos/def456", "widthPx": 1920, "heightPx": 1080}
+  ],
+  "reviews": [
+    {
+      "name": "places/ChIJ_SAMPLE/reviews/r1",
+      "rating": 5,
+      "text": {"text": "Excellent service, very professional staff.", "languageCode": "en"},
+      "publishTime": "2026-03-15T10:30:00Z"
+    },
+    {
+      "name": "places/ChIJ_SAMPLE/reviews/r2",
+      "rating": 4,
+      "text": {"text": "Good experience overall, slight wait time.", "languageCode": "en"},
+      "publishTime": "2026-02-20T14:15:00Z"
+    }
+  ],
+  "_unknownFutureField": "should be preserved in raw_json even though our model ignores it"
+}
