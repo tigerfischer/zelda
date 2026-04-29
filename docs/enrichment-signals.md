@@ -272,6 +272,183 @@ This category drives the pitch entirely: replacement vs first-hire.
 
 ---
 
+## Ranked by signal value — the dentist's lived reality
+
+Cross-cut of every signal above (except disqualifiers, which are
+orthogonal gates), sorted by **how much each signal illuminates the
+dentist's actual operational reality** — what they would recognize
+as *"yes, that's me / that's my clinic / that's what I'm dealing
+with."* Top = most insight per signal. Technical feasibility
+deliberately ignored here.
+
+IDs reference the tables above (e.g. B9 = "B. Conversion health,
+row 9"). Within a tier, ranking is also from most to least
+informative.
+
+### Tier 1 — Felt pain & identity (the dentist would recognize these instantly)
+
+These describe what the dentist *experiences daily* and *who they
+are*. Highest signal density per fact.
+
+1. **B9** — Reviews mentioning *"didn't pick up" / "no reply" / "couldn't book" / "phone busy"* → revenue is leaking *today*
+2. **B10** — Reviews mentioning *"called us back" / "responded quickly"* → opposite proof, same leak axis
+3. **D3** — Google review velocity (last 30 / 90 / 180 days) → are patients actually walking in
+4. **D7** — Negative review themes (no-show, billing, wait time, hygiene) → operational pain points
+5. **B5** — Practo "slots available today" → real-time demand level
+6. **B11** — Real-world response latency to inquiries → conversion pain quantified
+7. **F2** — Service mix tilt (general / cosmetic / implants / ortho / Invisalign) → what they actually *do*
+8. **F1** — Practo consultation fee → pricing power, market position
+9. **F3** — Years in operation → established vs growing vs new
+10. **F4** — Number of dentists on staff → solo / 2 / 3+ → fundamentally different business
+11. **F5** — Number of chairs visible → physical capacity = throughput ceiling
+12. **G11** — Specializations listed (orthodontist / endodontist / pedodontist / implantologist / cosmetic) → revenue mix
+13. **F12** — Equipment claims (CBCT, OPG, intraoral scanner, dental laser, RVG) → capital invested
+14. **G1** — Owner full name → personalization
+15. **G5** — Owner BDS/MDS qualifications → educational signal, premium positioning
+16. **F11** — Hospital affiliation → context of operations
+17. **C3** — Patient recall mentioned in reviews ("called me after 6 months") → their actual recall behavior
+18. **C4** — Long-cycle treatment focus (ortho / implants / Invisalign) → built-in retention via long treatment cycles
+
+### Tier 2 — How they operate today (their daily behavior)
+
+How they actually run the clinic — they'd recognize their own habits here.
+
+19. **D4** — Owner response rate to Google reviews → engaged or dormant
+20. **D5** — Owner response latency → attentiveness
+21. **A14** — GBP last post date → maintaining the listing or not
+22. **A17** — GBP photos freshness (most recent upload) → owner activity
+23. **A18** — GBP photos owner-uploaded vs user-uploaded ratio → engaged owner vs passive
+24. **D2** — Google review count → cumulative engagement
+25. **D1** — Google rating → reputation baseline
+26. **D8** — Practo rating + Practo review count (separate from Google) → cross-platform reputation
+27. **D9** — Practo "Visit Recommended" badge → Practo-validated patient sat
+28. **D10** — JustDial rating + review count → tertiary reputation
+29. **D11** — Cross-platform reputation consistency (Google vs Practo vs JD within 0.3) → authentic vs manipulated
+30. **B2** — WhatsApp Business profile (auto-reply / catalog active) → operational sophistication
+31. **B6** — Phone number publicly displayed → front-desk capture readiness
+32. **B12** — Auto-fill / sensible UX on booking form → care for patient experience
+33. **G12** — Owner-spoken languages → communication posture
+34. **G13** — Has co-founder / partner → multi-stakeholder
+35. **G6** — Owner age range → career stage, digital tool adoption
+36. **G10** — Years since BDS → seniority
+37. **A15** — GBP service categories (filled in or just "dentist") → effort spent on the listing
+38. **A16** — GBP photos count → effort spent
+
+### Tier 3 — What they've BUILT digitally (their infrastructure choices)
+
+Concrete things they (or someone they hired) put in place.
+
+39. **A1** — Has website
+40. **A9** — Has Practo profile + URL
+41. **A10** — Practo profile completeness (bio, education, photos, services filled)
+42. **B1** — WhatsApp click-to-chat link on website
+43. **B3** — Online booking widget present + provider (Practo / Setmore / custom / none)
+44. **B4** — GBP "Book online" button + provider
+45. **A21** — Has Instagram handle
+46. **A22** — Instagram follower count
+47. **A23** — Instagram post cadence (last 30 days)
+48. **A24** — Instagram bio quality (branded, link, CTA)
+49. **A25** — Has Facebook Page + URL
+50. **A27** — Has YouTube channel
+51. **A28** — YouTube subscribers + last video date
+52. **A29** — Has Twitter/X
+53. **B7** — Email displayed publicly
+54. **B8** — Live chat widget on site (Tawk / Tidio / Zendesk)
+55. **C1** — Newsletter / email signup form
+56. **C2** — Loyalty / membership scheme
+57. **C7** — "Returning patients" copy / testimonials on site
+58. **A11** — Listed on JustDial
+59. **A12** — Listed on Sulekha
+60. **A13** — Listed on Lybrate
+61. **A33** — Has blog / content marketing
+62. **A30** — Multi-location SEO landing pages count
+
+### Tier 4 — What they've HIRED (agency vs DIY)
+
+Whether someone outside is doing the marketing work. Changes the
+*pitch* entirely (replacement vs first-hire), so it's high-value
+despite being inferential.
+
+63. **E4** — Practo Plus / Premium subscription (₹2-5K/mo Practo-as-agency)
+64. **E1** — Website footer "Designed by [Agency]" / "Powered by"
+65. **E5 / A20** — Currently running Meta ads (Ad Library evidence)
+66. **E6 / A19** — Currently running Google Ads on dental keywords
+67. **E14** — Recent surge in Google review count (clustered uploads) → review-collection campaign
+68. **E13** — Recent surge in Instagram followers (>10x in <6 months) → paid promotion
+69. **E11** — Templated / copy-paste owner-response style across reviews → VA / agency
+70. **E12** — Posting cadence: 9-5 weekday-only on socials → office-hours pattern of an agency
+71. **E15** — YouTube videos professionally produced (drone, b-roll, color grading)
+72. **E16** — Owner-uploaded vs user-uploaded photos ratio
+73. **E2** — Photos with agency watermark / studio credit caption
+74. **E3** — Branded logo consistency across GBP / Insta / FB / website / Practo
+75. **E17** — Instagram bio mentions agency ("Marketing by @xyz")
+76. **E18** — PR / press coverage on local newspaper sites
+77. **E19** — Press release boilerplate detection
+78. **E7** — Multi-location SEO landing pages (SEO consultant work)
+79. **E8** — Schema.org LocalBusiness markup correctly populated
+80. **E9** — Live chat widget present (overlap with B8)
+81. **E10** — Email newsletter active (overlap with C1)
+82. **D6** — Templated response detection across reviews (overlap with E11)
+83. **E20** — Domain registered via managed registrar vs DIY
+84. **E21** — Multi-platform polished presence (computed)
+
+### Tier 5 — Sophistication / capacity / market position (context)
+
+Useful texture but second-order — describes context rather than reality.
+
+85. **F6** — Insurance partners listed (Star Health, Max Bupa, Niva Bupa)
+86. **F7** — EMI / financing partners listed (Zest, Bajaj, Snapmint)
+87. **F13** — NABH accreditation
+88. **F10** — Awards / recognitions claimed
+89. **F8** — Premium neighborhood (Sarabha Nagar / Model Town tier)
+90. **F9** — Multi-language website (Punjabi / Hindi versions)
+91. **F14** — Pricing transparency on site
+92. **F15** — Patient throughput indicators (post-treatment social posts)
+93. **A32** — Multi-language site (overlap with F9)
+94. **A34** — Listed in IDA member directory
+95. **A35** — Listed in Dental Council of India registry
+96. **C5** — WhatsApp broadcast / Status frequency
+97. **C6** — Birthday / festival promo posts on social
+98. **C8** — Membership badge / dental insurance partnership
+99. **A26** — Facebook Page age
+100. **D12** — Reddit / forum mentions
+101. **D13** — Press / news coverage
+102. **D14** — Negative press (malpractice, complaints, court cases)
+
+### Tier 6 — Meta-digital background (low signal density per fact)
+
+Mostly proxies. Useful only when triangulated with stronger signals.
+
+103. **A6** — Domain age
+104. **A7** — Domain registrar
+105. **A2** — Website tech stack (WordPress / Wix / custom)
+106. **A8** — MX records (Workspace / Zoho / personal Gmail)
+107. **A3** — Mobile-friendliness (Lighthouse score)
+108. **A4** — Page load speed (LCP, FID, CLS)
+109. **A5** — SSL certificate validity + age
+110. **A31** — Schema.org markup quality (overlap with E8)
+
+### Tier 7 — Outreach mechanics (not about understanding them, just for contacting them)
+
+These don't illuminate the dentist's reality at all — they're addresses on an envelope.
+
+111. **G2** — Owner LinkedIn profile URL
+112. **G3** — Owner LinkedIn activity level
+113. **G4** — Owner LinkedIn job title + bio
+114. **G7** — Owner direct WhatsApp / personal phone
+115. **G8** — Owner email
+116. **G9** — Owner personal Instagram
+117. **G14** — Owner publications / speaking / IDA roles
+118. **G15** — Owner Insta DM availability
+
+### Three observations from sorting
+
+1. **B9 is in a category by itself.** Reviews already on disk literally say *"the clinic didn't pick up"* — that's not a proxy for the dentist's pain, it's *the pain itself, narrated by a patient*. Every other signal is a proxy.
+2. **The Tier 1 / Tier 2 line is the line between *"that's me"* and *"that's my clinic."*** Tier 1 is felt experience (anyone hearing it would nod). Tier 2 is observable behavior (true but maybe not consciously reflected on).
+3. **Tier 4 is the most leverage-y for our pitch but the lowest signal density per fact.** No single agency-engagement signal is decisive — it's the *combination* (E4 + E1 + E5 + E14 together) that tells the story. Worth treating as a composite score, not individual rows.
+
+---
+
 ## Cross-cutting considerations
 
 These don't fit any single signal but affect how methods get picked.
@@ -293,7 +470,7 @@ These don't fit any single signal but affect how methods get picked.
 
 ## What's intentionally NOT in this doc
 
-- Prioritization. Which of these signals to actually capture in v1, in what order, with what method. (Next exercise.)
+- **Build prioritization.** Which signals to actually capture in v1, with what method, in what order. The "Ranked by signal value" section above is the *informational* ranking (what would be most insightful to know); it does not commit to a build order, which depends on cost / feasibility / dependency between fetchers.
 - Storage schema for enriched fields.
 - The scoring function that turns these signals into a 0–100 lead score.
 - The "value-jump hypothesis" generator that turns the score into a one-line SDR talking point.
