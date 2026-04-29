@@ -195,13 +195,38 @@ class FetchReviewsController:
                     )
 
             capture_id = f"{run_id}-{i:04d}"
-            self._process_one(
-                lead=lead,
+            summary = self.process_one_lead(
+                lead,
                 capture_id=capture_id,
                 max_reviews=max_reviews_per_place,
                 artifact_dir=artifact_dir,
-                result=result,
-                place_index=i,
+            )
+
+            # Accumulate into the city-level result
+            result.n_processed += 1
+            result.n_total_reviews_captured += summary["reviews_captured"]
+            result.captures.append(summary)
+            if summary["error_message"] and summary["fetch_status"] == "error":
+                result.errors.append(summary["error_message"])
+            for extra in summary.get("extra_errors", []):
+                result.errors.append(extra)
+
+            status = summary["fetch_status"]
+            if status in {"ok", "partial"}:
+                result.n_successful += 1
+            elif status in {"captcha", "blocked"}:
+                result.n_blocked += 1
+                result.aborted_due_to_block = True
+            else:  # "error"
+                result.n_errored += 1
+
+            logger.info(
+                "fetch_reviews.lead_done index={i} place_id={pid} "
+                "status={st} captured={n} truncated={tr}",
+                i=i, pid=lead.place_id,
+                st=status,
+                n=summary["reviews_captured"],
+                tr=summary["is_truncated"],
             )
 
             if result.aborted_due_to_block:
@@ -253,17 +278,37 @@ class FetchReviewsController:
             eligible.append(lead)
         return eligible
 
-    def _process_one(
+    def process_one_lead(
         self,
-        *,
         lead: RawLead,
+        *,
         capture_id: str,
-        max_reviews: int,
-        artifact_dir: Path,
-        result: FetchReviewsResult,
-        place_index: int,
-    ) -> None:
-        """Fetch reviews for one lead, persist + write artifact, track stats."""
+        max_reviews: int = 1000,
+        artifact_dir: Path | None = None,
+    ) -> dict[str, Any]:
+        """Per-lead entry point. Used both by `run()` (city loop) and
+        by the orchestrator's GoogleReviewsSourceAdapter.
+
+        Returns a capture summary dict:
+            {
+              "place_id": str,
+              "fetch_status": str,            # "ok" | "partial" | "blocked" | "captcha" | "error"
+              "reviews_captured": int,
+              "is_truncated": bool,
+              "capture_id": str,
+              "artifact_path": str | None,
+              "error_message": str | None,
+              "extra_errors": list[str],      # repo-save / artifact-write errors
+            }
+
+        No side effects on the caller's result object — purely
+        compositional. Errors are returned in the dict, not raised.
+        """
+        if artifact_dir is None:
+            artifact_dir = self._artifacts_dir / slugify(lead.city)
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+
+        extra_errors: list[str] = []
         search_query = self._build_search_query(lead)
         total_hint = lead.review_count
 
@@ -280,10 +325,7 @@ class FetchReviewsController:
                 f"({type(e).__name__}: {e})"
             )
             logger.error(msg)
-            result.errors.append(msg)
-            result.n_errored += 1
-            result.n_processed += 1
-            result.captures.append({
+            return {
                 "place_id": lead.place_id,
                 "fetch_status": "error",
                 "reviews_captured": 0,
@@ -291,8 +333,8 @@ class FetchReviewsController:
                 "capture_id": capture_id,
                 "artifact_path": None,
                 "error_message": msg,
-            })
-            return
+                "extra_errors": [],
+            }
 
         # Persist capture metadata + reviews to SQLite
         try:
@@ -302,11 +344,9 @@ class FetchReviewsController:
                 f"repo save_capture failed for place_id={lead.place_id}: {e}"
             )
             logger.error(msg)
-            result.errors.append(msg)
+            extra_errors.append(msg)
 
-        # Write JSONL artifact with one review per line. Capture metadata
-        # already lives in review_captures table; the JSONL is the audit
-        # trail of the raw extracted data per review.
+        # Write JSONL artifact with one review per line.
         artifact_path: Path | None = None
         if review_set.reviews:
             artifact_path = artifact_dir / f"{capture_id}.jsonl"
@@ -323,22 +363,10 @@ class FetchReviewsController:
                     f"artifact write failed for {artifact_path}: {e}"
                 )
                 logger.error(msg)
-                result.errors.append(msg)
+                extra_errors.append(msg)
                 artifact_path = None
 
-        # Update stats based on fetch_status
-        result.n_processed += 1
-        result.n_total_reviews_captured += review_set.reviews_captured
-
-        if review_set.fetch_status in {"ok", "partial"}:
-            result.n_successful += 1
-        elif review_set.fetch_status in {"captcha", "blocked"}:
-            result.n_blocked += 1
-            result.aborted_due_to_block = True
-        else:  # "error"
-            result.n_errored += 1
-
-        result.captures.append({
+        return {
             "place_id": lead.place_id,
             "fetch_status": review_set.fetch_status,
             "reviews_captured": review_set.reviews_captured,
@@ -346,16 +374,8 @@ class FetchReviewsController:
             "capture_id": capture_id,
             "artifact_path": str(artifact_path) if artifact_path else None,
             "error_message": review_set.error_message,
-        })
-
-        logger.info(
-            "fetch_reviews.lead_done index={i} place_id={pid} "
-            "status={st} captured={n} truncated={tr}",
-            i=place_index, pid=lead.place_id,
-            st=review_set.fetch_status,
-            n=review_set.reviews_captured,
-            tr=review_set.is_truncated,
-        )
+            "extra_errors": extra_errors,
+        }
 
     # ── helpers ──────────────────────────────────────────────────────
 

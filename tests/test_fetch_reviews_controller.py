@@ -369,6 +369,92 @@ def test_build_search_query_real_world_sai_dental_case():
     assert out == "Sai Dental Clinic Ludhiana"
 
 
+# ── process_one_lead — the public per-lead path used by orchestrator ───
+
+
+def test_process_one_lead_returns_capture_dict_for_success(
+    controller, gateway, lead_repo, tmp_path,
+):
+    lead = _mk_lead("p1")
+    gateway.set_response("p1", _mk_review_set("p1", n_reviews=4))
+
+    summary = controller.process_one_lead(
+        lead, capture_id="cap-1", max_reviews=100,
+    )
+
+    assert summary["place_id"] == "p1"
+    assert summary["fetch_status"] == "ok"
+    assert summary["reviews_captured"] == 4
+    assert summary["capture_id"] == "cap-1"
+    assert summary["artifact_path"] is not None
+    assert summary["error_message"] is None
+    assert summary["extra_errors"] == []
+    # Artifact file exists
+    assert Path(summary["artifact_path"]).exists()
+
+
+def test_process_one_lead_returns_error_dict_on_gateway_exception(
+    controller, gateway,
+):
+    lead = _mk_lead("p_bad")
+    gateway.set_failure("p_bad", RuntimeError("network died"))
+
+    summary = controller.process_one_lead(
+        lead, capture_id="cap-bad", max_reviews=100,
+    )
+
+    assert summary["fetch_status"] == "error"
+    assert summary["reviews_captured"] == 0
+    assert "network died" in (summary["error_message"] or "")
+    assert summary["artifact_path"] is None
+
+
+def test_process_one_lead_returns_blocked_status_without_aborting(
+    controller, gateway,
+):
+    """`process_one_lead` is pure per-lead — it does NOT set the
+    aborted-due-to-block flag (that's the city loop's job). Just
+    returns the blocked status faithfully."""
+    lead = _mk_lead("p1")
+    blocked = _mk_review_set("p1", n_reviews=0, fetch_status="blocked")
+    blocked.error_message = "captcha"
+    gateway.set_response("p1", blocked)
+
+    summary = controller.process_one_lead(
+        lead, capture_id="cap-block", max_reviews=100,
+    )
+
+    assert summary["fetch_status"] == "blocked"
+    assert summary["error_message"] == "captcha"
+
+
+def test_process_one_lead_uses_default_artifact_dir_when_not_given(
+    controller, gateway,
+):
+    lead = _mk_lead("p1")
+    gateway.set_response("p1", _mk_review_set("p1", n_reviews=2))
+
+    summary = controller.process_one_lead(
+        lead, capture_id="cap-default-dir", max_reviews=100,
+    )
+
+    # Default = self._artifacts_dir / slug(city) / capture_id.jsonl
+    assert summary["artifact_path"] is not None
+    assert "ludhiana" in summary["artifact_path"]
+
+
+def test_process_one_lead_persists_to_review_repo(
+    controller, gateway, review_repo,
+):
+    lead = _mk_lead("p1")
+    gateway.set_response("p1", _mk_review_set("p1", n_reviews=3))
+
+    controller.process_one_lead(lead, capture_id="cap-persist", max_reviews=100)
+
+    assert review_repo.count_captures_for_place("p1") == 1
+    assert review_repo.count_reviews_for_place("p1") == 3
+
+
 # ── refresh / recency filter ───────────────────────────────────────────
 
 
