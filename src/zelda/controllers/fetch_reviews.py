@@ -39,6 +39,7 @@ import random
 import re
 import secrets
 import time
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -361,11 +362,17 @@ class FetchReviewsController:
     def _build_search_query(self, lead: RawLead) -> str:
         """Build a Maps-search-friendly query string for this lead.
 
-        Uses `name + city`. The clinic name itself often disambiguates,
-        and Maps' search already biases toward results within the
-        searched locality.
+        Three transforms make Maps search more reliable:
+        1. Unicode normalize via NFKD — many GBP names use math-italic
+           or sans-serif-bold variants ("𝗦𝗮𝗶" → "Sai") for SEO theatre,
+           which trip up the search.
+        2. Drop the SEO-spam suffix after the first " - " / " | " /
+           " — " separator. GBP names often include things like
+           "- Best Dentist Near Me in {city}" tacked on.
+        3. Append the city only if it isn't already present in the
+           cleaned name.
         """
-        return f"{lead.name} {lead.city}".strip()
+        return _build_search_query(lead.name, lead.city)
 
     def _inter_place_sleep(self) -> None:
         low, high = self._inter_place_delay_range
@@ -380,3 +387,34 @@ def _make_run_id(now: datetime) -> str:
     ts = now.strftime("%Y%m%d-%H%M%S")
     suffix = secrets.token_hex(2)
     return f"{ts}-{suffix}"
+
+
+_NAME_SEPARATORS: tuple[str, ...] = (" - ", " — ", " | ", " :: ", " // ")
+
+
+def _build_search_query(name: str, city: str) -> str:
+    """Pure helper for clinic-name → Maps-search-query transformation.
+
+    Extracted as a module function so it can be unit tested without
+    constructing a controller.
+    """
+    # 1. Unicode normalize so math-italic / sans-serif-bold etc. fall
+    # back to plain Latin chars Maps search expects.
+    cleaned = unicodedata.normalize("NFKD", name)
+    cleaned = "".join(c for c in cleaned if not unicodedata.combining(c))
+
+    # 2. Drop SEO-spam suffix after the first separator
+    for sep in _NAME_SEPARATORS:
+        if sep in cleaned:
+            cleaned = cleaned.split(sep, 1)[0]
+            break
+
+    # 3. Collapse internal whitespace
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    city = city.strip()
+    if not city:
+        return cleaned
+    if city.lower() in cleaned.lower():
+        return cleaned
+    return f"{cleaned} {city}"

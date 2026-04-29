@@ -1,10 +1,12 @@
 """Zelda CLI.
 
 Subcommands:
-    discover  — run the discover controller for a city
-    sync      — push DB → Drive for a city
+    discover       — find dentists in a city via Google Places
+    sync           — push DB → Drive for a city
+    bootstrap      — pull Drive → fresh local DB (cross-machine setup)
+    fetch-reviews  — capture per-place reviews from Google Maps
 
-Both subcommands read configuration from `.env` via Settings, wire up
+All subcommands read configuration from `.env` via Settings, wire up
 the appropriate gateway + repo + controller, and print a one-line
 result summary.
 """
@@ -15,10 +17,16 @@ import sys
 from zelda.config import Settings
 from zelda.controllers.bootstrap import BootstrapController, BootstrapResult
 from zelda.controllers.discover import DiscoverController, DiscoverResult
+from zelda.controllers.fetch_reviews import (
+    FetchReviewsController,
+    FetchReviewsResult,
+)
 from zelda.controllers.sync import DriveSyncController, SyncResult
 from zelda.gateways.google_drive import GoogleDriveGateway
 from zelda.gateways.google_places import GooglePlacesGateway
+from zelda.gateways.google_reviews import GoogleReviewsGateway
 from zelda.repositories.raw_lead_repo import RawLeadRepository
+from zelda.repositories.review_repo import ReviewRepository
 
 
 # ── argument types ──────────────────────────────────────────────────
@@ -47,6 +55,18 @@ def _positive_int(v: str) -> int:
     if n < 1:
         raise argparse.ArgumentTypeError(f"must be >= 1, got {n}")
     return n
+
+
+def _non_negative_float(v: str) -> float:
+    try:
+        f = float(v)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(
+            f"must be a non-negative number, got {v!r}"
+        ) from e
+    if f < 0:
+        raise argparse.ArgumentTypeError(f"must be >= 0, got {f}")
+    return f
 
 
 # ── parser ──────────────────────────────────────────────────────────
@@ -87,6 +107,49 @@ def build_parser() -> argparse.ArgumentParser:
         help="pull Drive → fresh local DB (cross-machine setup)",
     )
     p_boot.add_argument("--city", required=True, help="City name, e.g. Ludhiana")
+
+    p_rev = sub.add_parser(
+        "fetch-reviews",
+        help="capture per-place reviews from Google Maps via Playwright",
+    )
+    p_rev.add_argument("--city", required=True, help="City name, e.g. Ludhiana")
+    p_rev.add_argument(
+        "--max-places",
+        type=_max_results_type,
+        default=1,
+        help=(
+            "Cap on places this run captures reviews for (cost knob). "
+            "0 = no fetches; 'all' = unlimited. Default: 1."
+        ),
+    )
+    p_rev.add_argument(
+        "--max-reviews-per-place",
+        type=_positive_int,
+        default=100,
+        help=(
+            "Cap on reviews captured per place. Default: 100 (a useful "
+            "subset for V1; bump to 1000 for full capture)."
+        ),
+    )
+    p_rev.add_argument(
+        "--refresh-min-age-days",
+        type=_non_negative_float,
+        default=7.0,
+        help=(
+            "Skip places whose latest capture is younger than this many "
+            "days. Default: 7. Pass 0 (or use --force-refresh) to disable."
+        ),
+    )
+    p_rev.add_argument(
+        "--force-refresh",
+        action="store_true",
+        help="Re-capture every place regardless of recency.",
+    )
+    p_rev.add_argument(
+        "--headful",
+        action="store_true",
+        help="Show the browser window (off by default; useful for debug).",
+    )
 
     return parser
 
@@ -184,6 +247,53 @@ def cmd_bootstrap(args: argparse.Namespace, settings: Settings) -> int:
     return 0 if not result.errors else 1
 
 
+def cmd_fetch_reviews(args: argparse.Namespace, settings: Settings) -> int:
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
+    reviews_artifacts_dir = settings.data_dir / "reviews-artifacts"
+
+    lead_repo = RawLeadRepository(settings.db_path)
+    review_repo = ReviewRepository(settings.db_path)
+    try:
+        with GoogleReviewsGateway.launch(headless=not args.headful) as gateway:
+            controller = FetchReviewsController(
+                gateway=gateway,
+                review_repo=review_repo,
+                lead_repo=lead_repo,
+                artifacts_dir=reviews_artifacts_dir,
+            )
+            result: FetchReviewsResult = controller.run(
+                args.city,
+                max_places=args.max_places,
+                max_reviews_per_place=args.max_reviews_per_place,
+                refresh_min_age_days=args.refresh_min_age_days,
+                force_refresh=args.force_refresh,
+            )
+    finally:
+        review_repo.close()
+        lead_repo.close()
+
+    print(
+        f"fetch-reviews {args.city}: "
+        f"leads={result.n_leads_in_city} "
+        f"skipped_recent={result.n_skipped_recent} "
+        f"eligible={result.n_eligible} "
+        f"after_max_places={result.n_after_max_places} "
+        f"processed={result.n_processed} "
+        f"successful={result.n_successful} "
+        f"blocked={result.n_blocked} "
+        f"errored={result.n_errored} "
+        f"reviews_captured={result.n_total_reviews_captured} "
+        f"aborted_due_to_block={result.aborted_due_to_block} "
+        f"errors={len(result.errors)} "
+        f"run_id={result.run_id}"
+    )
+    if result.errors:
+        return 1
+    if result.aborted_due_to_block:
+        return 2
+    return 0
+
+
 # ── entry point ─────────────────────────────────────────────────────
 
 
@@ -191,6 +301,7 @@ _HANDLERS = {
     "discover": cmd_discover,
     "sync": cmd_sync,
     "bootstrap": cmd_bootstrap,
+    "fetch-reviews": cmd_fetch_reviews,
 }
 
 

@@ -123,6 +123,117 @@ def test_bootstrap_requires_city():
         parser.parse_args(["bootstrap"])
 
 
+# ── fetch-reviews subcommand ──────────────────────────────────────────
+
+
+def test_fetch_reviews_basic_args():
+    parser = build_parser()
+    args = parser.parse_args(["fetch-reviews", "--city", "Ludhiana"])
+    assert args.command == "fetch-reviews"
+    assert args.city == "Ludhiana"
+    # Defaults
+    assert args.max_places == 1
+    assert args.max_reviews_per_place == 100
+    assert args.refresh_min_age_days == 7.0
+    assert args.force_refresh is False
+    assert args.headful is False
+
+
+def test_fetch_reviews_requires_city():
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["fetch-reviews"])
+
+
+def test_fetch_reviews_max_places_int():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["fetch-reviews", "--city", "Ludhiana", "--max-places", "10"]
+    )
+    assert args.max_places == 10
+
+
+def test_fetch_reviews_max_places_all_means_unlimited():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["fetch-reviews", "--city", "Ludhiana", "--max-places", "all"]
+    )
+    assert args.max_places is None
+
+
+def test_fetch_reviews_max_places_zero_for_dry_run():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["fetch-reviews", "--city", "Ludhiana", "--max-places", "0"]
+    )
+    assert args.max_places == 0
+
+
+def test_fetch_reviews_max_places_rejects_negative():
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            ["fetch-reviews", "--city", "Ludhiana", "--max-places", "-1"]
+        )
+
+
+def test_fetch_reviews_max_reviews_per_place_int():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["fetch-reviews", "--city", "Ludhiana", "--max-reviews-per-place", "1000"]
+    )
+    assert args.max_reviews_per_place == 1000
+
+
+def test_fetch_reviews_max_reviews_per_place_rejects_zero():
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            ["fetch-reviews", "--city", "Ludhiana", "--max-reviews-per-place", "0"]
+        )
+
+
+def test_fetch_reviews_refresh_min_age_days_float():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["fetch-reviews", "--city", "Ludhiana", "--refresh-min-age-days", "3.5"]
+    )
+    assert args.refresh_min_age_days == 3.5
+
+
+def test_fetch_reviews_refresh_min_age_days_zero_allowed():
+    """Zero is a valid recency window — same effect as --force-refresh."""
+    parser = build_parser()
+    args = parser.parse_args(
+        ["fetch-reviews", "--city", "Ludhiana", "--refresh-min-age-days", "0"]
+    )
+    assert args.refresh_min_age_days == 0.0
+
+
+def test_fetch_reviews_refresh_min_age_days_rejects_negative():
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            ["fetch-reviews", "--city", "Ludhiana", "--refresh-min-age-days", "-1"]
+        )
+
+
+def test_fetch_reviews_force_refresh_flag():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["fetch-reviews", "--city", "Ludhiana", "--force-refresh"]
+    )
+    assert args.force_refresh is True
+
+
+def test_fetch_reviews_headful_flag():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["fetch-reviews", "--city", "Ludhiana", "--headful"]
+    )
+    assert args.headful is True
+
+
 # ── argument-type helpers ─────────────────────────────────────────────
 
 

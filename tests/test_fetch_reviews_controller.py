@@ -8,6 +8,7 @@ import pytest
 from zelda.controllers.fetch_reviews import (
     FetchReviewsController,
     FetchReviewsResult,
+    _build_search_query,
 )
 from zelda.models.raw_lead import RawLead
 from zelda.models.review import Review, ReviewSet
@@ -300,6 +301,72 @@ def test_run_builds_search_query_from_name_and_city(controller, gateway, lead_re
     )
     controller.run("Ludhiana")
     assert gateway.fetch_calls[0]["search_query"] == "Sai Dental Clinic Ludhiana"
+
+
+# ── search query builder helper ────────────────────────────────────────
+
+
+def test_build_search_query_simple_case():
+    assert _build_search_query("Sai Dental Clinic", "Ludhiana") == "Sai Dental Clinic Ludhiana"
+
+
+def test_build_search_query_normalizes_unicode_stylized_chars():
+    """Many GBP names use math-italic or sans-serif-bold variants for
+    SEO theatre. NFKD normalize back to plain Latin chars."""
+    name = "𝗦𝗮𝗶 𝗗𝗲𝗻𝘁𝗮𝗹 𝗖𝗹𝗶𝗻𝗶𝗰"  # math-sans-serif-bold
+    out = _build_search_query(name, "Ludhiana")
+    assert "𝗦" not in out
+    assert "Sai Dental Clinic" in out
+    assert "Ludhiana" in out
+
+
+def test_build_search_query_strips_seo_suffix_after_dash():
+    out = _build_search_query(
+        "Sai Dental Clinic - Best Dentist Near Me in Ludhiana",
+        "Ludhiana",
+    )
+    assert out == "Sai Dental Clinic Ludhiana"
+    assert "Best Dentist" not in out
+
+
+def test_build_search_query_strips_seo_suffix_after_pipe():
+    out = _build_search_query(
+        "Saggar Dental | Implant OPG & CBCT Centre",
+        "Ludhiana",
+    )
+    assert "|" not in out
+    assert "Implant" not in out
+    assert "Saggar Dental Ludhiana" in out
+
+
+def test_build_search_query_strips_seo_suffix_after_em_dash():
+    out = _build_search_query("Foo Dental — Premier Care", "Mumbai")
+    assert "Foo Dental Mumbai" == out
+
+
+def test_build_search_query_does_not_double_city():
+    """If the cleaned name already contains the city, don't re-append."""
+    out = _build_search_query("Smile Dental Ludhiana", "Ludhiana")
+    assert out == "Smile Dental Ludhiana"
+    assert out.lower().count("ludhiana") == 1
+
+
+def test_build_search_query_collapses_whitespace():
+    out = _build_search_query("Foo   Dental    Clinic", "Mumbai")
+    assert out == "Foo Dental Clinic Mumbai"
+
+
+def test_build_search_query_handles_empty_city():
+    out = _build_search_query("Foo Dental", "")
+    assert out == "Foo Dental"
+
+
+def test_build_search_query_real_world_sai_dental_case():
+    """The exact stored name that broke the first live CLI run.
+    Combination of math-bold unicode + SEO suffix + already-includes-city."""
+    raw = "𝗦𝗮𝗶 𝗗𝗲𝗻𝘁𝗮𝗹 𝗖𝗹𝗶𝗻𝗶𝗰 - Best Dentist Near Me in Ludhiana"
+    out = _build_search_query(raw, "Ludhiana")
+    assert out == "Sai Dental Clinic Ludhiana"
 
 
 # ── refresh / recency filter ───────────────────────────────────────────
