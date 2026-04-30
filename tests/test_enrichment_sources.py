@@ -20,7 +20,7 @@ from zelda.controllers.enrichment_sources import (
     SourceAdapter,
 )
 from zelda.models.practo_profile import PractoProfile
-from zelda.models.raw_lead import RawLead
+from zelda.models.google_places_lead import GooglePlacesLead
 from zelda.models.review import Review, ReviewSet
 from zelda.repositories.practo_profile_repo import PractoProfileRepository
 from zelda.repositories.review_repo import ReviewRepository
@@ -34,7 +34,7 @@ _T_LONG_AGO = _T1 - timedelta(days=200)
 # ── helpers + fixtures ──────────────────────────────────────────────────
 
 
-def _mk_lead(place_id: str = "ChIJ_X", **overrides) -> RawLead:
+def _mk_lead(place_id: str = "ChIJ_X", **overrides) -> GooglePlacesLead:
     base = dict(
         place_id=place_id,
         city="Ludhiana",
@@ -44,7 +44,7 @@ def _mk_lead(place_id: str = "ChIJ_X", **overrides) -> RawLead:
         last_modified_at=_T1,
     )
     base.update(overrides)
-    return RawLead(**base)
+    return GooglePlacesLead(**base)
 
 
 def _mk_review_set(place_id="p1", n=3, captured_at=_T_NOW, status="ok") -> ReviewSet:
@@ -102,7 +102,7 @@ def test_reviews_adapter_name():
 
 
 def test_reviews_adapter_can_fetch_is_always_true(review_repo):
-    """Reviews need only place_id + name + city, all on RawLead."""
+    """Reviews need only place_id + name + city, all on GooglePlacesLead."""
     adapter = GoogleReviewsSourceAdapter(MagicMock(), review_repo)
     assert adapter.can_fetch(_mk_lead("p1")) is True
     assert adapter.can_fetch(_mk_lead("p2")) is True
@@ -185,18 +185,13 @@ def test_reviews_adapter_fetch_for_lead_delegates_to_controller(review_repo):
 
 def _make_practo_adapter(
     enrich_controller=None,
-    discover_controller=None,
     repo=None,
-    *,
-    threshold: float = 0.7,
 ):
     """Helper: build a PractoSourceAdapter with sensible MagicMock
     defaults for any arg not supplied."""
     return PractoSourceAdapter(
         enrich_controller=enrich_controller or MagicMock(),
-        discover_controller=discover_controller or MagicMock(),
         practo_repo=repo or MagicMock(),
-        discover_min_match_score=threshold,
     )
 
 
@@ -204,13 +199,28 @@ def test_practo_adapter_name():
     assert _make_practo_adapter().name == "practo_profile"
 
 
-def test_practo_adapter_can_fetch_is_always_true(practo_repo):
-    """can_fetch is now True for every lead — the umbrella adapter can
-    always TRY discovery; whether it finds a URL is a fetch outcome,
-    not a precondition."""
+def test_practo_adapter_can_fetch_false_without_row(practo_repo):
+    """can_fetch is False when no row exists — discovery is now a
+    pre-step, not part of this adapter."""
+    adapter = _make_practo_adapter(repo=practo_repo)
+    assert adapter.can_fetch(_mk_lead("p_no_data_anywhere")) is False
+
+
+def test_practo_adapter_can_fetch_true_with_url_stub(practo_repo):
+    practo_repo.upsert_stub("p1", "https://www.practo.com/known")
     adapter = _make_practo_adapter(repo=practo_repo)
     assert adapter.can_fetch(_mk_lead("p1")) is True
-    assert adapter.can_fetch(_mk_lead("p_no_data_anywhere")) is True
+
+
+def test_practo_adapter_can_fetch_false_for_no_url_found_row(practo_repo):
+    """no_url_found rows have empty practo_url — can_fetch False."""
+    prof = PractoProfile(
+        place_id="p1", practo_url="", fetch_status="no_url_found",
+        fetched_at=_T_NOW, discovered_at=_T_NOW, last_modified_at=_T_NOW,
+    )
+    practo_repo.upsert(prof)
+    adapter = _make_practo_adapter(repo=practo_repo)
+    assert adapter.can_fetch(_mk_lead("p1")) is False
 
 
 def test_practo_adapter_is_cached_fresh_false_without_row(practo_repo):
@@ -305,38 +315,11 @@ def test_practo_adapter_no_url_found_is_also_terminal_fresh(practo_repo):
     assert adapter.is_cached_fresh("p1", max_age_days=180, now=_T_NOW) is True
 
 
-# ── fetch_for_lead: discover-then-enrich orchestration ────────────────
+# ── fetch_for_lead: enrichment-only (discovery is a pre-step now) ──────
 
 
-def test_practo_adapter_fetch_runs_discovery_when_no_row_exists(practo_repo):
-    """When no row exists for the place_id, the adapter must invoke
-    URL discovery (passing a single-lead list)."""
-    discover = MagicMock()
-    enrich = MagicMock()
-    enrich.enrich_one.return_value = PractoProfile(
-        place_id="p1", practo_url="", fetch_status="ok",
-        fetched_at=_T_NOW, discovered_at=_T1, last_modified_at=_T_NOW,
-    )
-
-    # Discover doesn't actually persist (it's a Mock), but we simulate
-    # discovery's effect by populating a stub before enrich is called.
-    def _fake_discover(leads, *, min_match_score, dry_run):
-        practo_repo.upsert_stub("p1", "https://www.practo.com/found")
-    discover.discover_for_leads.side_effect = _fake_discover
-
-    adapter = PractoSourceAdapter(
-        enrich_controller=enrich, discover_controller=discover, practo_repo=practo_repo,
-    )
-    summary = adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-1", now=_T_NOW)
-
-    discover.discover_for_leads.assert_called_once()
-    enrich.enrich_one.assert_called_once_with("p1")
-    assert summary["fetch_status"] == "ok"
-
-
-def test_practo_adapter_fetch_skips_discovery_when_stub_exists(practo_repo):
+def test_practo_adapter_fetch_runs_enrich_when_stub_exists(practo_repo):
     practo_repo.upsert_stub("p1", "https://www.practo.com/known")
-    discover = MagicMock()
     enrich = MagicMock()
     enrich.enrich_one.return_value = PractoProfile(
         place_id="p1", practo_url="https://www.practo.com/known",
@@ -345,69 +328,25 @@ def test_practo_adapter_fetch_skips_discovery_when_stub_exists(practo_repo):
     )
 
     adapter = PractoSourceAdapter(
-        enrich_controller=enrich, discover_controller=discover, practo_repo=practo_repo,
+        enrich_controller=enrich, practo_repo=practo_repo,
     )
-    adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-1", now=_T_NOW)
+    summary = adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-1", now=_T_NOW)
 
-    discover.discover_for_leads.assert_not_called()
     enrich.enrich_one.assert_called_once_with("p1")
+    assert summary["fetch_status"] == "ok"
 
 
-def test_practo_adapter_fetch_returns_no_url_found_when_discovery_finds_nothing(
-    practo_repo,
-):
-    """If discovery completes but persists a no_url_found row (or no
-    row at all), the adapter surfaces no_url_found and skips enrich."""
-    discover = MagicMock()
-    enrich = MagicMock()
-
-    def _fake_no_match(leads, *, min_match_score, dry_run):
-        prof = PractoProfile(
-            place_id="p1", practo_url="", fetch_status="no_url_found",
-            fetched_at=_T_NOW, discovered_at=_T_NOW, last_modified_at=_T_NOW,
-        )
-        practo_repo.upsert(prof)
-    discover.discover_for_leads.side_effect = _fake_no_match
-
-    adapter = PractoSourceAdapter(
-        enrich_controller=enrich, discover_controller=discover, practo_repo=practo_repo,
-    )
-    summary = adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-x", now=_T_NOW)
-
-    discover.discover_for_leads.assert_called_once()
-    enrich.enrich_one.assert_not_called()  # no URL → no enrich
-    assert summary["fetch_status"] == "no_url_found"
-
-
-def test_practo_adapter_fetch_returns_no_url_found_when_discovery_persists_nothing(
-    practo_repo,
-):
-    """Defensive: if discovery completes but writes no row at all,
-    treat as no_url_found so we don't keep retrying every run."""
-    discover = MagicMock()  # returns nothing, persists nothing
+def test_practo_adapter_fetch_returns_no_url_found_when_no_row(practo_repo):
+    """Defensive: if the matcher pre-step was skipped and no row
+    exists, treat as no_url_found so the orchestrator counts cleanly."""
     enrich = MagicMock()
 
     adapter = PractoSourceAdapter(
-        enrich_controller=enrich, discover_controller=discover, practo_repo=practo_repo,
+        enrich_controller=enrich, practo_repo=practo_repo,
     )
     summary = adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-x", now=_T_NOW)
 
     assert summary["fetch_status"] == "no_url_found"
-    enrich.enrich_one.assert_not_called()
-
-
-def test_practo_adapter_fetch_handles_discovery_exception(practo_repo):
-    discover = MagicMock()
-    discover.discover_for_leads.side_effect = RuntimeError("akamai blocked us")
-    enrich = MagicMock()
-
-    adapter = PractoSourceAdapter(
-        enrich_controller=enrich, discover_controller=discover, practo_repo=practo_repo,
-    )
-    summary = adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-x", now=_T_NOW)
-
-    assert summary["fetch_status"] == "error"
-    assert "akamai blocked" in (summary["error_message"] or "")
     enrich.enrich_one.assert_not_called()
 
 
@@ -417,9 +356,7 @@ def test_practo_adapter_fetch_handles_enrich_exception(practo_repo):
     enrich.enrich_one.side_effect = RuntimeError("network died")
 
     adapter = PractoSourceAdapter(
-        enrich_controller=enrich,
-        discover_controller=MagicMock(),
-        practo_repo=practo_repo,
+        enrich_controller=enrich, practo_repo=practo_repo,
     )
     summary = adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-1", now=_T_NOW)
 
@@ -434,9 +371,7 @@ def test_practo_adapter_fetch_returns_error_when_enrich_returns_none(practo_repo
     enrich.enrich_one.return_value = None
 
     adapter = PractoSourceAdapter(
-        enrich_controller=enrich,
-        discover_controller=MagicMock(),
-        practo_repo=practo_repo,
+        enrich_controller=enrich, practo_repo=practo_repo,
     )
     summary = adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-1", now=_T_NOW)
 
@@ -455,41 +390,14 @@ def test_practo_adapter_fetch_skips_enrich_for_terminal_existing_row(practo_repo
     )
     practo_repo.upsert(prof)
     enrich = MagicMock()
-    discover = MagicMock()
 
     adapter = PractoSourceAdapter(
-        enrich_controller=enrich, discover_controller=discover, practo_repo=practo_repo,
+        enrich_controller=enrich, practo_repo=practo_repo,
     )
     summary = adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-1", now=_T_NOW)
 
-    discover.discover_for_leads.assert_not_called()
     enrich.enrich_one.assert_not_called()
     assert summary["fetch_status"] == "no_url_found"
-
-
-def test_practo_adapter_passes_threshold_to_discovery(practo_repo):
-    discover = MagicMock()
-    enrich = MagicMock()
-    enrich.enrich_one.return_value = PractoProfile(
-        place_id="p1", practo_url="x", fetch_status="ok",
-        fetched_at=_T_NOW, discovered_at=_T1, last_modified_at=_T_NOW,
-    )
-
-    def _fake_discover(leads, *, min_match_score, dry_run):
-        practo_repo.upsert_stub("p1", "https://www.practo.com/x")
-    discover.discover_for_leads.side_effect = _fake_discover
-
-    adapter = PractoSourceAdapter(
-        enrich_controller=enrich,
-        discover_controller=discover,
-        practo_repo=practo_repo,
-        discover_min_match_score=0.85,
-    )
-    adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-1", now=_T_NOW)
-
-    call_kwargs = discover.discover_for_leads.call_args.kwargs
-    assert call_kwargs["min_match_score"] == 0.85
-    assert call_kwargs["dry_run"] is False
 
 
 # ── Protocol conformance ───────────────────────────────────────────────

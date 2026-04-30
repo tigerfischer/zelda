@@ -4,7 +4,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class RawLead(BaseModel):
+class GooglePlacesLead(BaseModel):
     """A raw lead as emitted by the discovery stage.
 
     Flat columns hold the fields we care about explicitly. `extras` holds

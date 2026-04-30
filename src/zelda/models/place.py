@@ -4,7 +4,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
-from zelda.models.raw_lead import RawLead
+from zelda.models.google_places_lead import GooglePlacesLead
 
 
 class _CamelBase(BaseModel):
@@ -91,13 +91,13 @@ class PlaceDetails(_CamelBase):
     reviews: list[Review] | None = None
 
 
-def raw_lead_from_place_details(
+def google_places_lead_from_place_details(
     raw: dict[str, Any],
     city: str,
     *,
     now: datetime | None = None,
-) -> RawLead:
-    """Parse a raw Place Details API response and build a RawLead.
+) -> GooglePlacesLead:
+    """Parse a raw Place Details API response and build a GooglePlacesLead.
 
     The full `raw` dict is preserved on the lead's `raw_json` field so we
     never drop information that our model didn't anticipate.
@@ -105,7 +105,7 @@ def raw_lead_from_place_details(
     parsed = PlaceDetails.model_validate(raw)
     timestamp = now or datetime.now(timezone.utc)
 
-    return RawLead(
+    return GooglePlacesLead(
         place_id=parsed.id,
         city=city,
         name=parsed.display_name.text,

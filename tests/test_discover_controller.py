@@ -9,7 +9,7 @@ from zelda.controllers.discover import (
     DiscoverController,
 )
 from zelda.models.place import Place
-from zelda.repositories.raw_lead_repo import RawLeadRepository
+from zelda.repositories.google_places_lead_repo import GooglePlacesLeadRepository
 
 
 # ── fakes ────────────────────────────────────────────────────────────────
@@ -72,13 +72,13 @@ def gateway() -> FakeGateway:
 
 @pytest.fixture
 def repo():
-    r = RawLeadRepository(":memory:")
+    r = GooglePlacesLeadRepository(":memory:")
     yield r
     r.close()
 
 
 @pytest.fixture
-def controller(gateway: FakeGateway, repo: RawLeadRepository, tmp_path: Path) -> DiscoverController:
+def controller(gateway: FakeGateway, repo: GooglePlacesLeadRepository, tmp_path: Path) -> DiscoverController:
     return DiscoverController(
         gateway=gateway,
         repo=repo,
@@ -152,8 +152,8 @@ def test_run_skips_place_ids_already_in_repo(gateway, repo, controller, tmp_path
     """Re-run policy: place_ids already in DB are skipped — neither the
     Place Details call fires nor any artifact line is written."""
     # Pre-populate one lead via the converter, written through a real upsert.
-    from zelda.models.place import raw_lead_from_place_details
-    repo.upsert_many([raw_lead_from_place_details(_mk_details("p1"), city="Ludhiana")])
+    from zelda.models.place import google_places_lead_from_place_details
+    repo.upsert_many([google_places_lead_from_place_details(_mk_details("p1"), city="Ludhiana")])
 
     gateway.text_search_results = {
         "dentist in Ludhiana": [_mk_place("p1"), _mk_place("p2")]
@@ -267,8 +267,8 @@ def test_no_artifact_when_no_new_places(gateway, controller):
 
 
 def test_no_artifact_when_all_places_are_known(gateway, repo, controller):
-    from zelda.models.place import raw_lead_from_place_details
-    repo.upsert_many([raw_lead_from_place_details(_mk_details("p1"), city="Ludhiana")])
+    from zelda.models.place import google_places_lead_from_place_details
+    repo.upsert_many([google_places_lead_from_place_details(_mk_details("p1"), city="Ludhiana")])
 
     gateway.text_search_results = {"dentist in Ludhiana": [_mk_place("p1")]}
 

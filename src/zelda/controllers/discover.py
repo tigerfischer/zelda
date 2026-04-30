@@ -3,7 +3,7 @@ populate raw leads for a city.
 
 The pipeline:
     text_search × N queries  →  dedupe  →  skip already-known place_ids
-    →  cap to max_results    →  fetch place details  →  RawLead
+    →  cap to max_results    →  fetch place details  →  GooglePlacesLead
     →  write JSONL artifact  →  upsert to repo
 
 Cost knob:
@@ -26,9 +26,9 @@ from typing import Protocol
 
 from loguru import logger
 
-from zelda.models.place import Place, raw_lead_from_place_details
-from zelda.models.raw_lead import RawLead
-from zelda.repositories.raw_lead_repo import RawLeadRepository
+from zelda.models.place import Place, google_places_lead_from_place_details
+from zelda.models.google_places_lead import GooglePlacesLead
+from zelda.repositories.google_places_lead_repo import GooglePlacesLeadRepository
 from zelda.util import slugify
 
 
@@ -74,7 +74,7 @@ class DiscoverController:
     def __init__(
         self,
         gateway: _PlacesGateway,
-        repo: RawLeadRepository,
+        repo: GooglePlacesLeadRepository,
         artifacts_dir: Path,
         *,
         queries: tuple[str, ...] = DEFAULT_QUERIES,
@@ -196,15 +196,15 @@ class DiscoverController:
         run_id: str,
         place_ids: list[str],
         result: DiscoverResult,
-    ) -> tuple[list[RawLead], Path | None]:
-        """Fetch Place Details for each id, build RawLeads, and write a
+    ) -> tuple[list[GooglePlacesLead], Path | None]:
+        """Fetch Place Details for each id, build GooglePlacesLeads, and write a
         JSONL artifact of the raw responses. Per-place errors are
         captured on `result.errors`; one bad place doesn't fail the run.
 
         Returns the artifact path only if at least one lead was written;
         an empty file is cleaned up so we don't leave stale artifacts.
         """
-        leads: list[RawLead] = []
+        leads: list[GooglePlacesLead] = []
         artifact_path = self._artifact_path(city, run_id)
         artifact_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -213,7 +213,7 @@ class DiscoverController:
             for i, pid in enumerate(place_ids, start=1):
                 try:
                     raw = self._gateway.get_place_details(pid)
-                    lead = raw_lead_from_place_details(raw, city=city)
+                    lead = google_places_lead_from_place_details(raw, city=city)
                 except Exception as e:
                     msg = f"get_place_details failed for {pid}: {e}"
                     logger.error(msg)

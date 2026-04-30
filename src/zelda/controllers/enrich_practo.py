@@ -6,7 +6,7 @@ Scope discipline
 This controller deliberately processes ONLY rows that already have a
 known Practo URL (i.e. rows in the `practo_profiles` table created via
 `repo.upsert_stub`). It does not search Practo or try to discover URLs
-from `RawLead.website`. URL acquisition is a separate concern; this
+from `GooglePlacesLead.website`. URL acquisition is a separate concern; this
 controller's sole job is "given a URL, fetch the profile."
 
 Trigger model

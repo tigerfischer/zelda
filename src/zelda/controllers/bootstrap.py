@@ -18,7 +18,7 @@ Algorithm
 3. Process every local JSONL chronologically (filenames sort that
    way: `YYYYMMDD-HHMMSS-XXXX`). For each line:
    - Parse the raw API response.
-   - Build a RawLead via the existing converter, with `now` set to
+   - Build a GooglePlacesLead via the existing converter, with `now` set to
      the file's run-id timestamp (so `discovered_at` reflects the
      original discovery time, not bootstrap time).
    - Upsert into the repo. The repo's UPSERT preserves
@@ -47,10 +47,10 @@ from typing import Protocol
 
 from loguru import logger
 
-from zelda.controllers.sync import ARTIFACTS_DRIVE_FOLDER
-from zelda.models.place import raw_lead_from_place_details
-from zelda.models.raw_lead import RawLead
-from zelda.repositories.raw_lead_repo import RawLeadRepository
+from zelda.controllers.sync_steps import ARTIFACTS_FOLDER_NAME as ARTIFACTS_DRIVE_FOLDER
+from zelda.models.place import google_places_lead_from_place_details
+from zelda.models.google_places_lead import GooglePlacesLead
+from zelda.repositories.google_places_lead_repo import GooglePlacesLeadRepository
 from zelda.util import slugify
 
 
@@ -88,7 +88,7 @@ class BootstrapController:
     def __init__(
         self,
         drive: _DriveGateway,
-        repo: RawLeadRepository,
+        repo: GooglePlacesLeadRepository,
         artifacts_dir: Path | str,
     ) -> None:
         self._drive = drive
@@ -144,7 +144,7 @@ class BootstrapController:
 
         for path in local_files:
             run_ts = _parse_run_id_timestamp(path.name) or bootstrap_time
-            leads_in_file: list[RawLead] = []
+            leads_in_file: list[GooglePlacesLead] = []
 
             with path.open(encoding="utf-8") as fp:
                 for line_num, line in enumerate(fp, start=1):
@@ -154,7 +154,7 @@ class BootstrapController:
                     result.n_lines_total += 1
                     try:
                         raw = json.loads(line)
-                        lead = raw_lead_from_place_details(raw, city=city, now=run_ts)
+                        lead = google_places_lead_from_place_details(raw, city=city, now=run_ts)
                     except Exception as e:
                         msg = f"parse failed in {path.name}:{line_num}: {e}"
                         logger.error(msg)

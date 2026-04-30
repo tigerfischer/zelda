@@ -17,7 +17,7 @@ import sys
 from zelda.config import Settings
 from zelda.controllers.discover import DiscoverController
 from zelda.gateways.google_places import GooglePlacesGateway
-from zelda.repositories.raw_lead_repo import RawLeadRepository
+from zelda.repositories.google_places_lead_repo import GooglePlacesLeadRepository
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -48,7 +48,7 @@ def main(argv: list[str] | None = None) -> int:
     print()
 
     with GooglePlacesGateway(api_key=settings.google_places_api_key) as gateway:
-        repo = RawLeadRepository(settings.db_path)
+        repo = GooglePlacesLeadRepository(settings.db_path)
         try:
             controller = DiscoverController(
                 gateway=gateway,

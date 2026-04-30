@@ -1,4 +1,4 @@
-"""SQLite-backed persistence for `RawLead`.
+"""SQLite-backed persistence for `GooglePlacesLead`.
 
 This is the *system of record*. Drive is a one-way projection of what
 lives here; controllers above never persist to Drive directly.
@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from zelda.models.raw_lead import RawLead
+from zelda.models.google_places_lead import GooglePlacesLead
 
 
 _COLUMNS: tuple[str, ...] = (
@@ -68,7 +68,7 @@ _UPSERT_IMMUTABLE: frozenset[str] = frozenset({
 })
 
 _SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS raw_leads (
+CREATE TABLE IF NOT EXISTS google_places_leads (
     place_id            TEXT PRIMARY KEY,
     city                TEXT NOT NULL,
     name                TEXT NOT NULL,
@@ -104,14 +104,14 @@ CREATE TABLE IF NOT EXISTS raw_leads (
     last_synced_at      TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_raw_leads_city ON raw_leads(city);
-CREATE INDEX IF NOT EXISTS idx_raw_leads_sync
-    ON raw_leads(city, last_modified_at, last_synced_at);
+CREATE INDEX IF NOT EXISTS idx_google_places_leads_city ON google_places_leads(city);
+CREATE INDEX IF NOT EXISTS idx_google_places_leads_sync
+    ON google_places_leads(city, last_modified_at, last_synced_at);
 """
 
 
-class RawLeadRepository:
-    """SQLite repository for `RawLead`. Single-threaded use only."""
+class GooglePlacesLeadRepository:
+    """SQLite repository for `GooglePlacesLead`. Single-threaded use only."""
 
     def __init__(self, db_path: Path | str) -> None:
         self._db_path = str(db_path)
@@ -125,7 +125,7 @@ class RawLeadRepository:
 
     # ── lifecycle ────────────────────────────────────────────────────
 
-    def __enter__(self) -> "RawLeadRepository":
+    def __enter__(self) -> "GooglePlacesLeadRepository":
         return self
 
     def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
@@ -143,7 +143,7 @@ class RawLeadRepository:
 
     def exists(self, place_id: str) -> bool:
         cur = self._conn.execute(
-            "SELECT 1 FROM raw_leads WHERE place_id = ? LIMIT 1",
+            "SELECT 1 FROM google_places_leads WHERE place_id = ? LIMIT 1",
             (place_id,),
         )
         return cur.fetchone() is not None
@@ -160,33 +160,33 @@ class RawLeadRepository:
             return set()
         placeholders = ",".join("?" * len(ids))
         cur = self._conn.execute(
-            f"SELECT place_id FROM raw_leads WHERE place_id IN ({placeholders})",
+            f"SELECT place_id FROM google_places_leads WHERE place_id IN ({placeholders})",
             ids,
         )
         return {row[0] for row in cur.fetchall()}
 
-    def get_by_id(self, place_id: str) -> RawLead | None:
+    def get_by_id(self, place_id: str) -> GooglePlacesLead | None:
         cur = self._conn.execute(
-            "SELECT * FROM raw_leads WHERE place_id = ?",
+            "SELECT * FROM google_places_leads WHERE place_id = ?",
             (place_id,),
         )
         row = cur.fetchone()
         return _row_to_lead(row) if row else None
 
-    def get_for_city(self, city: str) -> list[RawLead]:
+    def get_for_city(self, city: str) -> list[GooglePlacesLead]:
         cur = self._conn.execute(
-            "SELECT * FROM raw_leads WHERE city = ? ORDER BY discovered_at ASC",
+            "SELECT * FROM google_places_leads WHERE city = ? ORDER BY discovered_at ASC",
             (city,),
         )
         return [_row_to_lead(row) for row in cur.fetchall()]
 
-    def get_unsynced_for_city(self, city: str) -> list[RawLead]:
+    def get_unsynced_for_city(self, city: str) -> list[GooglePlacesLead]:
         """Rows in `city` whose `last_modified_at` is newer than their
         `last_synced_at` (or never synced). The delta the sync
         controller will push to Drive."""
         cur = self._conn.execute(
             """
-            SELECT * FROM raw_leads
+            SELECT * FROM google_places_leads
             WHERE city = ?
               AND (last_synced_at IS NULL OR last_modified_at > last_synced_at)
             ORDER BY discovered_at ASC
@@ -197,14 +197,14 @@ class RawLeadRepository:
 
     def count_for_city(self, city: str) -> int:
         cur = self._conn.execute(
-            "SELECT COUNT(*) FROM raw_leads WHERE city = ?", (city,)
+            "SELECT COUNT(*) FROM google_places_leads WHERE city = ?", (city,)
         )
         return int(cur.fetchone()[0])
 
     def count_unsynced_for_city(self, city: str) -> int:
         cur = self._conn.execute(
             """
-            SELECT COUNT(*) FROM raw_leads
+            SELECT COUNT(*) FROM google_places_leads
             WHERE city = ?
               AND (last_synced_at IS NULL OR last_modified_at > last_synced_at)
             """,
@@ -214,7 +214,7 @@ class RawLeadRepository:
 
     # ── writes ───────────────────────────────────────────────────────
 
-    def upsert_many(self, leads: Iterable[RawLead]) -> None:
+    def upsert_many(self, leads: Iterable[GooglePlacesLead]) -> None:
         """Insert new rows; for existing place_ids, update mutable fields
         but preserve `discovered_at` and `last_synced_at`."""
         rows = [_lead_to_row(lead) for lead in leads]
@@ -236,7 +236,7 @@ class RawLeadRepository:
         ts = (synced_at or datetime.now(timezone.utc)).isoformat()
         with self._conn:
             self._conn.executemany(
-                "UPDATE raw_leads SET last_synced_at = ? WHERE place_id = ?",
+                "UPDATE google_places_leads SET last_synced_at = ? WHERE place_id = ?",
                 [(ts, pid) for pid in ids],
             )
 
@@ -250,13 +250,13 @@ def _upsert_sql() -> str:
     update_cols = [c for c in _COLUMNS if c not in _UPSERT_IMMUTABLE]
     update_clause = ", ".join(f"{c} = excluded.{c}" for c in update_cols)
     return (
-        f"INSERT INTO raw_leads ({cols}) VALUES ({placeholders}) "
+        f"INSERT INTO google_places_leads ({cols}) VALUES ({placeholders}) "
         f"ON CONFLICT(place_id) DO UPDATE SET {update_clause}"
     )
 
 
-def _lead_to_row(lead: RawLead) -> dict[str, Any]:
-    """RawLead → dict suitable for executemany with named placeholders."""
+def _lead_to_row(lead: GooglePlacesLead) -> dict[str, Any]:
+    """GooglePlacesLead → dict suitable for executemany with named placeholders."""
     return {
         "place_id": lead.place_id,
         "city": lead.city,
@@ -288,8 +288,8 @@ def _lead_to_row(lead: RawLead) -> dict[str, Any]:
     }
 
 
-def _row_to_lead(row: sqlite3.Row) -> RawLead:
-    return RawLead(
+def _row_to_lead(row: sqlite3.Row) -> GooglePlacesLead:
+    return GooglePlacesLead(
         place_id=row["place_id"],
         city=row["city"],
         name=row["name"],

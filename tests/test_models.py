@@ -2,16 +2,16 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from zelda.models.place import Place, PlaceDetails, raw_lead_from_place_details
-from zelda.models.raw_lead import RawLead
+from zelda.models.place import Place, PlaceDetails, google_places_lead_from_place_details
+from zelda.models.google_places_lead import GooglePlacesLead
 
 
 def _now() -> datetime:
     return datetime(2026, 4, 29, 10, 0, 0, tzinfo=timezone.utc)
 
 
-def test_raw_lead_round_trips_through_json():
-    lead = RawLead(
+def test_google_places_lead_round_trips_through_json():
+    lead = GooglePlacesLead(
         place_id="ChIJ_TEST",
         city="Ludhiana",
         name="Test Dental Clinic",
@@ -24,13 +24,13 @@ def test_raw_lead_round_trips_through_json():
         last_modified_at=_now(),
     )
     dumped = lead.model_dump(mode="json")
-    restored = RawLead.model_validate(dumped)
+    restored = GooglePlacesLead.model_validate(dumped)
 
     assert restored == lead
 
 
-def test_raw_lead_handles_missing_optionals():
-    lead = RawLead(
+def test_google_places_lead_handles_missing_optionals():
+    lead = GooglePlacesLead(
         place_id="ChIJ_X",
         city="Ludhiana",
         name="Sparse Clinic",
@@ -45,8 +45,8 @@ def test_raw_lead_handles_missing_optionals():
     assert lead.last_synced_at is None
 
 
-def test_raw_lead_extras_preserves_arbitrary_nested_values():
-    lead = RawLead(
+def test_google_places_lead_extras_preserves_arbitrary_nested_values():
+    lead = GooglePlacesLead(
         place_id="ChIJ_X",
         city="Ludhiana",
         name="Test",
@@ -86,9 +86,9 @@ def test_place_details_parses_full_response(fixtures_dir: Path):
     assert details.editorial_summary.text == raw["editorialSummary"]["text"]
 
 
-def test_raw_lead_from_place_details_converter(fixtures_dir: Path):
+def test_google_places_lead_from_place_details_converter(fixtures_dir: Path):
     raw = json.loads((fixtures_dir / "place_details_sample.json").read_text())
-    lead = raw_lead_from_place_details(raw, city="Ludhiana", now=_now())
+    lead = google_places_lead_from_place_details(raw, city="Ludhiana", now=_now())
 
     assert lead.place_id == raw["id"]
     assert lead.city == "Ludhiana"
@@ -122,7 +122,7 @@ def test_converter_preserves_unknown_fields_in_raw_json(fixtures_dir: Path):
     raw = json.loads((fixtures_dir / "place_details_sample.json").read_text())
     assert "_unknownFutureField" in raw, "fixture should include an unknown field"
 
-    lead = raw_lead_from_place_details(raw, city="Ludhiana")
+    lead = google_places_lead_from_place_details(raw, city="Ludhiana")
 
     assert lead.raw_json == raw
     assert lead.raw_json["_unknownFutureField"] == raw["_unknownFutureField"]
@@ -140,7 +140,7 @@ def test_real_ludhiana_response_parses(fixtures_dir: Path):
 
     raw = json.loads(path.read_text())
     details = PlaceDetails.model_validate(raw)
-    lead = raw_lead_from_place_details(raw, city="Ludhiana")
+    lead = google_places_lead_from_place_details(raw, city="Ludhiana")
 
     assert details.id == raw["id"]
     assert lead.place_id == raw["id"]

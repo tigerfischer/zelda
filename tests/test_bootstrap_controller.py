@@ -9,8 +9,8 @@ from zelda.controllers.bootstrap import (
     BootstrapController,
     _parse_run_id_timestamp,
 )
-from zelda.controllers.sync import ARTIFACTS_DRIVE_FOLDER
-from zelda.repositories.raw_lead_repo import RawLeadRepository
+from zelda.controllers.sync_steps import ARTIFACTS_FOLDER_NAME as ARTIFACTS_DRIVE_FOLDER
+from zelda.repositories.google_places_lead_repo import GooglePlacesLeadRepository
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
@@ -59,13 +59,13 @@ def drive() -> FakeDriveGateway:
 
 @pytest.fixture
 def repo():
-    r = RawLeadRepository(":memory:")
+    r = GooglePlacesLeadRepository(":memory:")
     yield r
     r.close()
 
 
 @pytest.fixture
-def controller(drive: FakeDriveGateway, repo: RawLeadRepository, tmp_path: Path) -> BootstrapController:
+def controller(drive: FakeDriveGateway, repo: GooglePlacesLeadRepository, tmp_path: Path) -> BootstrapController:
     return BootstrapController(drive=drive, repo=repo, artifacts_dir=tmp_path / "artifacts")
 
 

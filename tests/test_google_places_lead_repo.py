@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-from zelda.models.raw_lead import RawLead
-from zelda.repositories.raw_lead_repo import RawLeadRepository
+from zelda.models.google_places_lead import GooglePlacesLead
+from zelda.repositories.google_places_lead_repo import GooglePlacesLeadRepository
 
 
 # ── timestamps used as test data ─────────────────────────────────────────
@@ -19,7 +19,7 @@ _T3 = _T1 + timedelta(hours=2)
 # ── helpers + fixtures ───────────────────────────────────────────────────
 
 
-def _mk_lead(place_id: str = "ChIJ_X", city: str = "Ludhiana", **overrides: Any) -> RawLead:
+def _mk_lead(place_id: str = "ChIJ_X", city: str = "Ludhiana", **overrides: Any) -> GooglePlacesLead:
     base: dict[str, Any] = dict(
         place_id=place_id,
         city=city,
@@ -28,12 +28,12 @@ def _mk_lead(place_id: str = "ChIJ_X", city: str = "Ludhiana", **overrides: Any)
         last_modified_at=_T1,
     )
     base.update(overrides)
-    return RawLead(**base)
+    return GooglePlacesLead(**base)
 
 
 @pytest.fixture
 def repo():
-    r = RawLeadRepository(":memory:")
+    r = GooglePlacesLeadRepository(":memory:")
     yield r
     r.close()
 
@@ -42,7 +42,7 @@ def repo():
 
 
 def test_init_schema_is_idempotent():
-    r = RawLeadRepository(":memory:")
+    r = GooglePlacesLeadRepository(":memory:")
     r.init_schema()
     r.init_schema()  # must not raise
     r.close()
@@ -50,7 +50,7 @@ def test_init_schema_is_idempotent():
 
 def test_repo_creates_parent_dir_if_missing(tmp_path: Path):
     db = tmp_path / "deep" / "subdir" / "x.db"
-    r = RawLeadRepository(db)
+    r = GooglePlacesLeadRepository(db)
     try:
         assert db.parent.exists()
     finally:
@@ -59,7 +59,7 @@ def test_repo_creates_parent_dir_if_missing(tmp_path: Path):
 
 def test_repo_is_context_manager(tmp_path: Path):
     db = tmp_path / "x.db"
-    with RawLeadRepository(db) as r:
+    with GooglePlacesLeadRepository(db) as r:
         r.upsert_many([_mk_lead("ChIJ_X")])
         assert r.exists("ChIJ_X")
 
@@ -67,18 +67,18 @@ def test_repo_is_context_manager(tmp_path: Path):
 # ── upsert: insert path ─────────────────────────────────────────────────
 
 
-def test_upsert_inserts_a_new_lead(repo: RawLeadRepository):
+def test_upsert_inserts_a_new_lead(repo: GooglePlacesLeadRepository):
     repo.upsert_many([_mk_lead("ChIJ_1")])
     assert repo.exists("ChIJ_1")
     assert repo.count_for_city("Ludhiana") == 1
 
 
-def test_upsert_inserts_many_in_one_call(repo: RawLeadRepository):
+def test_upsert_inserts_many_in_one_call(repo: GooglePlacesLeadRepository):
     repo.upsert_many([_mk_lead(f"ChIJ_{i}") for i in range(5)])
     assert repo.count_for_city("Ludhiana") == 5
 
 
-def test_upsert_handles_empty_list(repo: RawLeadRepository):
+def test_upsert_handles_empty_list(repo: GooglePlacesLeadRepository):
     repo.upsert_many([])  # must not raise
     assert repo.count_for_city("Ludhiana") == 0
 
@@ -86,7 +86,7 @@ def test_upsert_handles_empty_list(repo: RawLeadRepository):
 # ── upsert: update path (the contract that drives delta-sync) ───────────
 
 
-def test_upsert_updates_mutable_fields_on_conflict(repo: RawLeadRepository):
+def test_upsert_updates_mutable_fields_on_conflict(repo: GooglePlacesLeadRepository):
     repo.upsert_many([_mk_lead("ChIJ_X", rating=4.0, name="Clinic A")])
     repo.upsert_many(
         [_mk_lead("ChIJ_X", rating=4.5, name="Clinic A Renamed", last_modified_at=_T2)]
@@ -98,7 +98,7 @@ def test_upsert_updates_mutable_fields_on_conflict(repo: RawLeadRepository):
     assert lead.name == "Clinic A Renamed"
 
 
-def test_upsert_preserves_discovered_at(repo: RawLeadRepository):
+def test_upsert_preserves_discovered_at(repo: GooglePlacesLeadRepository):
     """`discovered_at` is immutable: re-upsert with a different value
     must not overwrite the original."""
     repo.upsert_many([_mk_lead("ChIJ_X", discovered_at=_T1, last_modified_at=_T1)])
@@ -109,7 +109,7 @@ def test_upsert_preserves_discovered_at(repo: RawLeadRepository):
     assert lead.discovered_at == _T1
 
 
-def test_upsert_updates_last_modified_at(repo: RawLeadRepository):
+def test_upsert_updates_last_modified_at(repo: GooglePlacesLeadRepository):
     repo.upsert_many([_mk_lead("ChIJ_X", last_modified_at=_T1)])
     repo.upsert_many([_mk_lead("ChIJ_X", last_modified_at=_T2)])
 
@@ -118,7 +118,7 @@ def test_upsert_updates_last_modified_at(repo: RawLeadRepository):
     assert lead.last_modified_at == _T2
 
 
-def test_upsert_preserves_last_synced_at(repo: RawLeadRepository):
+def test_upsert_preserves_last_synced_at(repo: GooglePlacesLeadRepository):
     """Re-upserting must NOT clobber `last_synced_at` — sync state is owned
     by the sync controller, not the discovery flow."""
     repo.upsert_many([_mk_lead("ChIJ_X", last_modified_at=_T1)])
@@ -133,44 +133,44 @@ def test_upsert_preserves_last_synced_at(repo: RawLeadRepository):
 # ── exists / get_by_id ──────────────────────────────────────────────────
 
 
-def test_exists_false_for_unknown(repo: RawLeadRepository):
+def test_exists_false_for_unknown(repo: GooglePlacesLeadRepository):
     assert repo.exists("ChIJ_NOPE") is False
 
 
-def test_exists_true_after_upsert(repo: RawLeadRepository):
+def test_exists_true_after_upsert(repo: GooglePlacesLeadRepository):
     repo.upsert_many([_mk_lead("ChIJ_X")])
     assert repo.exists("ChIJ_X") is True
 
 
-def test_exists_many_returns_only_known_subset(repo: RawLeadRepository):
+def test_exists_many_returns_only_known_subset(repo: GooglePlacesLeadRepository):
     repo.upsert_many([_mk_lead("ChIJ_1"), _mk_lead("ChIJ_2")])
     known = repo.exists_many(["ChIJ_1", "ChIJ_MISSING", "ChIJ_2", "ChIJ_OTHER"])
     assert known == {"ChIJ_1", "ChIJ_2"}
 
 
-def test_exists_many_handles_empty_input(repo: RawLeadRepository):
+def test_exists_many_handles_empty_input(repo: GooglePlacesLeadRepository):
     assert repo.exists_many([]) == set()
 
 
-def test_exists_many_returns_empty_when_nothing_known(repo: RawLeadRepository):
+def test_exists_many_returns_empty_when_nothing_known(repo: GooglePlacesLeadRepository):
     assert repo.exists_many(["ChIJ_NOPE_1", "ChIJ_NOPE_2"]) == set()
 
 
-def test_get_by_id_returns_lead(repo: RawLeadRepository):
+def test_get_by_id_returns_lead(repo: GooglePlacesLeadRepository):
     repo.upsert_many([_mk_lead("ChIJ_X", name="Test")])
     lead = repo.get_by_id("ChIJ_X")
     assert lead is not None
     assert lead.name == "Test"
 
 
-def test_get_by_id_returns_none_for_unknown(repo: RawLeadRepository):
+def test_get_by_id_returns_none_for_unknown(repo: GooglePlacesLeadRepository):
     assert repo.get_by_id("ChIJ_NOPE") is None
 
 
 # ── get/count for city ─────────────────────────────────────────────────
 
 
-def test_count_for_city_filters_by_city(repo: RawLeadRepository):
+def test_count_for_city_filters_by_city(repo: GooglePlacesLeadRepository):
     repo.upsert_many(
         [
             _mk_lead("ChIJ_L1", city="Ludhiana"),
@@ -183,7 +183,7 @@ def test_count_for_city_filters_by_city(repo: RawLeadRepository):
     assert repo.count_for_city("Bengaluru") == 0
 
 
-def test_get_for_city_returns_only_that_citys_leads(repo: RawLeadRepository):
+def test_get_for_city_returns_only_that_citys_leads(repo: GooglePlacesLeadRepository):
     repo.upsert_many(
         [
             _mk_lead("ChIJ_L1", city="Ludhiana"),
@@ -198,13 +198,13 @@ def test_get_for_city_returns_only_that_citys_leads(repo: RawLeadRepository):
 # ── delta sync logic ───────────────────────────────────────────────────
 
 
-def test_get_unsynced_returns_all_when_none_synced(repo: RawLeadRepository):
+def test_get_unsynced_returns_all_when_none_synced(repo: GooglePlacesLeadRepository):
     repo.upsert_many([_mk_lead(f"ChIJ_{i}") for i in range(3)])
     unsynced = repo.get_unsynced_for_city("Ludhiana")
     assert len(unsynced) == 3
 
 
-def test_mark_synced_excludes_marked_rows_from_unsynced(repo: RawLeadRepository):
+def test_mark_synced_excludes_marked_rows_from_unsynced(repo: GooglePlacesLeadRepository):
     repo.upsert_many([_mk_lead(f"ChIJ_{i}", last_modified_at=_T1) for i in range(3)])
     repo.mark_synced(["ChIJ_0", "ChIJ_1"], synced_at=_T2)
 
@@ -212,11 +212,11 @@ def test_mark_synced_excludes_marked_rows_from_unsynced(repo: RawLeadRepository)
     assert {l.place_id for l in unsynced} == {"ChIJ_2"}
 
 
-def test_mark_synced_handles_empty_list(repo: RawLeadRepository):
+def test_mark_synced_handles_empty_list(repo: GooglePlacesLeadRepository):
     repo.mark_synced([])  # must not raise
 
 
-def test_unsynced_after_modification(repo: RawLeadRepository):
+def test_unsynced_after_modification(repo: GooglePlacesLeadRepository):
     """Delta-detection contract: re-upserting a previously-synced lead
     must put it back into `unsynced` so the sync controller will push
     the update."""
@@ -233,7 +233,7 @@ def test_unsynced_after_modification(repo: RawLeadRepository):
     assert unsynced[0].rating == 4.5
 
 
-def test_count_unsynced_for_city(repo: RawLeadRepository):
+def test_count_unsynced_for_city(repo: GooglePlacesLeadRepository):
     repo.upsert_many(
         [
             _mk_lead("ChIJ_L1", city="Ludhiana", last_modified_at=_T1),
@@ -251,7 +251,7 @@ def test_count_unsynced_for_city(repo: RawLeadRepository):
 # ── round-trip fidelity ────────────────────────────────────────────────
 
 
-def test_extras_and_raw_json_round_trip(repo: RawLeadRepository):
+def test_extras_and_raw_json_round_trip(repo: GooglePlacesLeadRepository):
     extras = {"weird": [1, 2, {"nested": True}]}
     raw_json = {"id": "ChIJ_X", "displayName": {"text": "Test"}}
 
@@ -263,8 +263,8 @@ def test_extras_and_raw_json_round_trip(repo: RawLeadRepository):
     assert lead.raw_json == raw_json
 
 
-def test_optional_fields_round_trip_as_null(repo: RawLeadRepository):
-    """A sparse RawLead (only required fields set) must round-trip with
+def test_optional_fields_round_trip_as_null(repo: GooglePlacesLeadRepository):
+    """A sparse GooglePlacesLead (only required fields set) must round-trip with
     all optional fields as None — no '' / 0 / [] sneaking in."""
     repo.upsert_many([_mk_lead("ChIJ_X")])
     lead = repo.get_by_id("ChIJ_X")
@@ -277,7 +277,7 @@ def test_optional_fields_round_trip_as_null(repo: RawLeadRepository):
     assert lead.last_synced_at is None
 
 
-def test_full_field_round_trip(repo: RawLeadRepository):
+def test_full_field_round_trip(repo: GooglePlacesLeadRepository):
     """Build a lead with every optional field set, write it, read it back,
     must be equal."""
     lead_in = _mk_lead(

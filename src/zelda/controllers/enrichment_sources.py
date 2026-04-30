@@ -22,10 +22,9 @@ from typing import Any, Protocol, runtime_checkable
 
 from loguru import logger
 
-from zelda.controllers.discover_practo_urls import DiscoverPractoUrlsController
 from zelda.controllers.enrich_practo import EnrichPractoController
 from zelda.controllers.fetch_reviews import FetchReviewsController
-from zelda.models.raw_lead import RawLead
+from zelda.models.google_places_lead import GooglePlacesLead
 from zelda.repositories.practo_profile_repo import PractoProfileRepository
 from zelda.repositories.review_repo import ReviewRepository
 
@@ -64,7 +63,7 @@ class SourceAdapter(Protocol):
     @property
     def name(self) -> str: ...
 
-    def can_fetch(self, lead: RawLead) -> bool:
+    def can_fetch(self, lead: GooglePlacesLead) -> bool:
         """Does this source have what it needs to fetch this lead?
 
         Reviews need only `place_id + name + city` → always True.
@@ -90,7 +89,7 @@ class SourceAdapter(Protocol):
 
     def fetch_for_lead(
         self,
-        lead: RawLead,
+        lead: GooglePlacesLead,
         *,
         capture_id: str,
         now: datetime,
@@ -118,7 +117,7 @@ class SourceAdapter(Protocol):
 
 class GoogleReviewsSourceAdapter:
     """Wraps `FetchReviewsController` + `ReviewRepository` for the
-    orchestrator. Reviews can always be fetched given a RawLead
+    orchestrator. Reviews can always be fetched given a GooglePlacesLead
     (place_id + name + city is enough), so `can_fetch` is uniformly
     True."""
 
@@ -135,7 +134,7 @@ class GoogleReviewsSourceAdapter:
         self._repo = review_repo
         self._max_reviews_per_place = max_reviews_per_place
 
-    def can_fetch(self, lead: RawLead) -> bool:
+    def can_fetch(self, lead: GooglePlacesLead) -> bool:
         return True
 
     def is_cached_fresh(
@@ -156,7 +155,7 @@ class GoogleReviewsSourceAdapter:
 
     def fetch_for_lead(
         self,
-        lead: RawLead,
+        lead: GooglePlacesLead,
         *,
         capture_id: str,
         now: datetime,
@@ -183,23 +182,23 @@ _PRACTO_TERMINAL_STATUSES: frozenset[str] = frozenset({
 
 
 class PractoSourceAdapter:
-    """Wraps Practo enrichment as a single umbrella source.
+    """Wraps Practo PROFILE enrichment for the orchestrator.
 
-    Bundles two controllers (URL discovery + profile enrichment) so the
-    orchestrator's `enrich` flow doesn't need a separate "run discovery
-    first" step. From the orchestrator's POV, this is one source: given
-    a lead, produce Practo data — internally, that's discover URL → fetch
-    profile, with each substep cached so re-runs don't repeat work.
+    URL discovery (the "which Practo profile, if any, is this lead?"
+    decision) is no longer this adapter's job — it's been hoisted into
+    a city-wide pre-step (`PractoMatchController`) that runs once per
+    `enrich` invocation and populates URL stubs in one batched LLM
+    call. By the time this adapter runs, the `practo_profiles` table
+    is already in one of the states below.
 
-    Lifecycle of a `practo_profiles` row from this adapter:
-      - No row → discovery runs → either creates a `pending` stub OR
-        a terminal `no_url_found` row. If stub: enrichment runs next
-        and writes `ok` / `not_found` / `error` / `blocked`.
-      - `pending` row → discovery is skipped (URL already known);
-        enrichment runs.
-      - `ok` and recent → cache hit, both substeps skipped.
-      - `not_found` / `no_url_found` → terminal-fresh-forever, both
-        substeps skipped indefinitely.
+    Lifecycle of a `practo_profiles` row from this adapter's POV:
+      - No row → unexpected (the matcher should have written one);
+        treat as `no_url_found` to avoid retrying every run.
+      - `pending` row → URL is known but profile not yet fetched;
+        run enrichment.
+      - `ok` and recent → cache hit (handled in `is_cached_fresh`).
+      - `not_found` / `no_url_found` → terminal-fresh-forever; cache
+        hit so this method is never called.
       - `blocked` / `error` → retry on next pass.
     """
 
@@ -208,21 +207,18 @@ class PractoSourceAdapter:
     def __init__(
         self,
         enrich_controller: EnrichPractoController,
-        discover_controller: DiscoverPractoUrlsController,
         practo_repo: PractoProfileRepository,
-        *,
-        discover_min_match_score: float = 0.7,
     ) -> None:
         self._enrich = enrich_controller
-        self._discover = discover_controller
         self._repo = practo_repo
-        self._discover_min_match_score = discover_min_match_score
 
-    def can_fetch(self, lead: RawLead) -> bool:
-        # Always True — discovery can run on any lead. The "no Practo
-        # profile findable" outcome is now an EXPECTED terminal state
-        # (`no_url_found`), not an inability to fetch.
-        return True
+    def can_fetch(self, lead: GooglePlacesLead) -> bool:
+        # The pre-step matcher writes a row for EVERY lead in the
+        # city — either a `pending` stub (we have a URL) or a
+        # `no_url_found` sentinel (we don't). So `can_fetch` is True
+        # whenever a row exists with a non-empty practo_url.
+        existing = self._repo.get_by_place_id(lead.place_id)
+        return existing is not None and bool(existing.practo_url)
 
     def is_cached_fresh(
         self,
@@ -233,7 +229,7 @@ class PractoSourceAdapter:
     ) -> bool:
         profile = self._repo.get_by_place_id(place_id)
         if profile is None:
-            return False  # no row at all → needs discovery+enrich
+            return False  # no row at all → needs the matcher to run
         if profile.fetch_status in _PRACTO_TERMINAL_STATUSES:
             return True  # don't retry a known-dead/unfindable URL
         if profile.fetch_status != "ok":
@@ -245,52 +241,26 @@ class PractoSourceAdapter:
 
     def fetch_for_lead(
         self,
-        lead: RawLead,
+        lead: GooglePlacesLead,
         *,
         capture_id: str,
         now: datetime,
     ) -> dict[str, Any]:
-        # Step 1: ensure a stub row exists. If we don't have one yet,
-        # run URL discovery for this lead (single-lead mode — gateway's
-        # per-city listing cache amortises across the orchestrator's loop).
         existing = self._repo.get_by_place_id(lead.place_id)
         if existing is None:
-            try:
-                self._discover.discover_for_leads(
-                    [lead],
-                    min_match_score=self._discover_min_match_score,
-                    dry_run=False,
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(
-                    "practo_adapter.discovery_exception place_id={pid} err={err}",
-                    pid=lead.place_id, err=str(e),
-                )
-                return {
-                    "source": self.name,
-                    "place_id": lead.place_id,
-                    "fetch_status": "error",
-                    "error_message": (
-                        f"discovery exception: {type(e).__name__}: {e}"
-                    ),
-                    "capture_id": capture_id,
-                }
-            existing = self._repo.get_by_place_id(lead.place_id)
-
-        # If discovery couldn't find a URL (or persisted some other
-        # terminal state), surface that and stop — no profile to fetch.
-        if existing is None:
-            # Discovery didn't write any row. Treat as no-url-found so
-            # we don't keep searching every run.
+            # Defensive — the pre-step matcher should have written a
+            # row. Surface as no_url_found so we don't loop here.
             return {
                 "source": self.name,
                 "place_id": lead.place_id,
                 "fetch_status": "no_url_found",
                 "error_message": (
-                    "discovery completed but persisted no row for this lead"
+                    "no practo_profiles row for this lead — was the "
+                    "discover-practo-urls pre-step skipped?"
                 ),
                 "capture_id": capture_id,
             }
+
         if existing.fetch_status in _PRACTO_TERMINAL_STATUSES:
             return {
                 "source": self.name,
@@ -299,9 +269,8 @@ class PractoSourceAdapter:
                 "error_message": existing.error_message,
                 "capture_id": capture_id,
             }
+
         if not existing.practo_url:
-            # Defensive — non-terminal status but no URL string. Shouldn't
-            # happen given the repo's stub semantics, but handle it.
             return {
                 "source": self.name,
                 "place_id": lead.place_id,
@@ -313,7 +282,6 @@ class PractoSourceAdapter:
                 "capture_id": capture_id,
             }
 
-        # Step 2: we have a usable URL. Run enrichment.
         try:
             profile = self._enrich.enrich_one(lead.place_id)
         except Exception as e:  # noqa: BLE001

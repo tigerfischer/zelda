@@ -53,8 +53,8 @@ from zelda.controllers.enrichment_sources import (
     SUCCESSFUL_STATUSES,
     SourceAdapter,
 )
-from zelda.models.raw_lead import RawLead
-from zelda.repositories.raw_lead_repo import RawLeadRepository
+from zelda.models.google_places_lead import GooglePlacesLead
+from zelda.repositories.google_places_lead_repo import GooglePlacesLeadRepository
 
 
 @dataclass
@@ -101,7 +101,7 @@ class EnrichmentOrchestrator:
     def __init__(
         self,
         sources: list[SourceAdapter],
-        lead_repo: RawLeadRepository,
+        lead_repo: GooglePlacesLeadRepository,
         *,
         clock: Callable[[], datetime] | None = None,
         sleeper: Callable[[float], None] | None = None,
@@ -228,7 +228,7 @@ class EnrichmentOrchestrator:
     def _process_one(
         self,
         *,
-        lead: RawLead,
+        lead: GooglePlacesLead,
         source: SourceAdapter,
         blocked_set: set[str],
         capture_id: str,

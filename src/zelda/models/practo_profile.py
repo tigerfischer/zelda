@@ -18,11 +18,11 @@ A row passes through these states:
    gateway hit a transient block. `error_message` carries the
    reason; callers decide whether to retry.
 
-Why a separate table (rather than fields on `RawLead`)
+Why a separate table (rather than fields on `GooglePlacesLead`)
 -----------------------------------------------------
 Practo data is rich (~30+ fields), refreshes on a different cadence
 (monthly vs. weekly for Places), and follows a one-to-one mapping
-with `place_id`. Bolting it onto `RawLead` would bloat that model
+with `place_id`. Bolting it onto `GooglePlacesLead` would bloat that model
 and entangle two refresh contracts. Future enrichment sources
 (JustDial, Lybrate, IDA) will follow the same per-source-table pattern.
 
@@ -86,7 +86,7 @@ class PractoProfile(BaseModel):
     # ── identity / FK ────────────────────────────────────────────────
 
     place_id: str
-    """Foreign key to `raw_leads.place_id`. One Practo profile per lead."""
+    """Foreign key to `google_places_leads.place_id`. One Practo profile per lead."""
 
     practo_url: str
     """The Practo profile URL associated with this lead. Either set

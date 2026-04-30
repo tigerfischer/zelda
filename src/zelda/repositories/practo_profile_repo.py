@@ -1,6 +1,6 @@
 """SQLite-backed persistence for `PractoProfile`.
 
-One row per `place_id` — the same natural key as `raw_leads`. The two
+One row per `place_id` — the same natural key as `google_places_leads`. The two
 tables are intentionally NOT joined via FK constraints: an enrichment
 row can outlive the source lead (e.g. business closes) and we don't
 want a cascade delete to silently drop scraped history.
@@ -13,7 +13,7 @@ Row lifecycle
   refresh), runs the Apify actor, and calls `upsert(profile)` with the
   fully-populated PractoProfile (status='ok' / 'not_found' / 'error').
 - `discovered_at` is preserved across upserts; `last_modified_at` bumps
-  every write. Same convention as `RawLeadRepository`.
+  every write. Same convention as `GooglePlacesLeadRepository`.
 
 JSON columns
 ------------

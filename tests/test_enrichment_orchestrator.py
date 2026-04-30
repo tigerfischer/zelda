@@ -17,8 +17,8 @@ from zelda.controllers.enrichment_orchestrator import (
     EnrichmentOrchestrator,
     OrchestratorResult,
 )
-from zelda.models.raw_lead import RawLead
-from zelda.repositories.raw_lead_repo import RawLeadRepository
+from zelda.models.google_places_lead import GooglePlacesLead
+from zelda.repositories.google_places_lead_repo import GooglePlacesLeadRepository
 
 
 _T_NOW = datetime(2026, 4, 30, 12, 0, 0, tzinfo=timezone.utc)
@@ -48,7 +48,7 @@ class FakeSource:
     is_fresh_calls: list[tuple[str, float]] = field(default_factory=list)
     fetch_calls: list[dict[str, Any]] = field(default_factory=list)
 
-    def can_fetch(self, lead: RawLead) -> bool:
+    def can_fetch(self, lead: GooglePlacesLead) -> bool:
         self.can_fetch_calls.append(lead.place_id)
         return self.can_fetch_overrides.get(
             lead.place_id, self.can_fetch_default,
@@ -82,8 +82,8 @@ class FakeSource:
 # ── helpers + fixtures ──────────────────────────────────────────────────
 
 
-def _mk_lead(place_id: str = "ChIJ_X", city: str = "Ludhiana") -> RawLead:
-    return RawLead(
+def _mk_lead(place_id: str = "ChIJ_X", city: str = "Ludhiana") -> GooglePlacesLead:
+    return GooglePlacesLead(
         place_id=place_id,
         city=city,
         name=f"Clinic {place_id}",
@@ -95,7 +95,7 @@ def _mk_lead(place_id: str = "ChIJ_X", city: str = "Ludhiana") -> RawLead:
 
 @pytest.fixture
 def lead_repo():
-    r = RawLeadRepository(":memory:")
+    r = GooglePlacesLeadRepository(":memory:")
     yield r
     r.close()
 

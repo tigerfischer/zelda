@@ -10,9 +10,9 @@ from zelda.controllers.fetch_reviews import (
     FetchReviewsResult,
     _build_search_query,
 )
-from zelda.models.raw_lead import RawLead
+from zelda.models.google_places_lead import GooglePlacesLead
 from zelda.models.review import Review, ReviewSet
-from zelda.repositories.raw_lead_repo import RawLeadRepository
+from zelda.repositories.google_places_lead_repo import GooglePlacesLeadRepository
 from zelda.repositories.review_repo import ReviewRepository
 
 
@@ -84,8 +84,8 @@ def _mk_lead(
     name: str = "Test Clinic",
     city: str = "Ludhiana",
     review_count: int = 50,
-) -> RawLead:
-    return RawLead(
+) -> GooglePlacesLead:
+    return GooglePlacesLead(
         place_id=place_id,
         city=city,
         name=name,
@@ -153,7 +153,7 @@ def review_repo():
 
 @pytest.fixture
 def lead_repo():
-    r = RawLeadRepository(":memory:")
+    r = GooglePlacesLeadRepository(":memory:")
     yield r
     r.close()
 
@@ -162,7 +162,7 @@ def lead_repo():
 def controller(
     gateway: FakeReviewsGateway,
     review_repo: ReviewRepository,
-    lead_repo: RawLeadRepository,
+    lead_repo: GooglePlacesLeadRepository,
     tmp_path: Path,
 ) -> FetchReviewsController:
     sleep_calls: list[float] = []

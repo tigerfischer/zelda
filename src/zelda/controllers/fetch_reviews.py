@@ -47,9 +47,9 @@ from typing import Any, Callable, Protocol
 
 from loguru import logger
 
-from zelda.models.raw_lead import RawLead
+from zelda.models.google_places_lead import GooglePlacesLead
 from zelda.models.review import ReviewSet
-from zelda.repositories.raw_lead_repo import RawLeadRepository
+from zelda.repositories.google_places_lead_repo import GooglePlacesLeadRepository
 from zelda.repositories.review_repo import ReviewRepository
 from zelda.util import slugify
 
@@ -99,7 +99,7 @@ class FetchReviewsController:
         self,
         gateway: _ReviewsGateway,
         review_repo: ReviewRepository,
-        lead_repo: RawLeadRepository,
+        lead_repo: GooglePlacesLeadRepository,
         artifacts_dir: Path | str,
         *,
         clock: Callable[[], datetime] | None = None,
@@ -253,18 +253,18 @@ class FetchReviewsController:
 
     def _filter_eligible(
         self,
-        leads: list[RawLead],
+        leads: list[GooglePlacesLead],
         now: datetime,
         refresh_min_age_days: float,
         force_refresh: bool,
         result: FetchReviewsResult,
-    ) -> list[RawLead]:
+    ) -> list[GooglePlacesLead]:
         """Skip leads whose latest capture is < refresh_min_age_days
         old. Bypass when force_refresh is True."""
         if force_refresh:
             return list(leads)
 
-        eligible: list[RawLead] = []
+        eligible: list[GooglePlacesLead] = []
         for lead in leads:
             latest = self._review_repo.get_latest_capture(lead.place_id)
             if latest is None:
@@ -280,7 +280,7 @@ class FetchReviewsController:
 
     def process_one_lead(
         self,
-        lead: RawLead,
+        lead: GooglePlacesLead,
         *,
         capture_id: str,
         max_reviews: int = 1000,
@@ -379,7 +379,7 @@ class FetchReviewsController:
 
     # ── helpers ──────────────────────────────────────────────────────
 
-    def _build_search_query(self, lead: RawLead) -> str:
+    def _build_search_query(self, lead: GooglePlacesLead) -> str:
         """Build a Maps-search-friendly query string for this lead.
 
         Three transforms make Maps search more reliable:
