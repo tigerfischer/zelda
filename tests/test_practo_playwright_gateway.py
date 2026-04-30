@@ -12,9 +12,9 @@ from pathlib import Path
 
 import pytest
 
+from zelda.gateways._practo_browser import is_challenge_page
 from zelda.gateways.practo_playwright import (
     parse_practo_state,
-    _is_challenge_page,
     _extract_specializations,
     _extract_membership_names,
     _join_address_lines,
@@ -112,16 +112,16 @@ def test_join_address_lines_returns_none_when_empty():
 # ── challenge detection ────────────────────────────────────────────
 
 
-def test_is_challenge_page_by_title():
-    assert _is_challenge_page(title="Challenge Validation", html="anything") is True
+def testis_challenge_page_by_title():
+    assert is_challenge_page(title="Challenge Validation", html="anything") is True
 
 
-def test_is_challenge_page_by_body():
-    assert _is_challenge_page(title="", html="<html>Challenge Validation</html>") is True
+def testis_challenge_page_by_body():
+    assert is_challenge_page(title="", html="<html>Challenge Validation</html>") is True
 
 
-def test_is_challenge_page_clean_returns_false():
-    assert _is_challenge_page(
+def testis_challenge_page_clean_returns_false():
+    assert is_challenge_page(
         title="Dr. K A Mohan - Orthodontist", html="<html>real content</html>"
     ) is False
 

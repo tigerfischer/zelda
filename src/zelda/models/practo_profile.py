@@ -1,20 +1,22 @@
-"""PractoProfile — one Practo doctor/clinic profile, scraped via the
-Apify `easyapi/practo-doctor-scraper` actor and joined to a Google
-Places lead by `place_id`.
+"""PractoProfile — one Practo doctor/clinic profile, scraped via
+`PractoPlaywrightGateway` and joined to a Google Places lead by
+`place_id`.
 
 Lifecycle
 ---------
-A row passes through three states:
+A row passes through these states:
 
-1. **stub** (`fetch_status="pending"`, `fetched_at=None`). Operator
-   has manually associated a Practo URL with a place_id but the
-   actor has not been run yet.
-2. **enriched** (`fetch_status="ok"`, `fetched_at=<utc>`). Apify
-   returned at least one record; well-known signals are promoted to
-   typed columns and the full response is preserved in `raw_json`.
-3. **terminal-failure** (`fetch_status="not_found" | "blocked" |
-   "error"`). The gateway failed to return usable data; `error_message`
-   carries the reason. Caller decides whether to retry.
+1. **stub** (`fetch_status="pending"`, `fetched_at=None`). A Practo
+   URL has been associated with a place_id (manually, or by the
+   URL-discovery controller) but enrichment hasn't run yet.
+2. **enriched** (`fetch_status="ok"`, `fetched_at=<utc>`). The
+   gateway parsed the profile cleanly; well-known signals are
+   promoted to typed columns and the full Redux state is preserved
+   in `raw_json`.
+3. **terminal-failure** (`fetch_status="not_found" | "no_url_found"
+   | "blocked" | "error"`). Either no usable profile exists or the
+   gateway hit a transient block. `error_message` carries the
+   reason; callers decide whether to retry.
 
 Why a separate table (rather than fields on `RawLead`)
 -----------------------------------------------------
@@ -27,11 +29,11 @@ and entangle two refresh contracts. Future enrichment sources
 Field selection
 ---------------
 The typed columns prioritize signals from `docs/enrichment-signals.md`
-(A9, A10, D8, D9, F1, F3, G1, G5, G10, G11, G12) plus high-value
-fields the Apify actor reliably returns (clinic address, services,
-photo URLs, summary, recommendation %). Anything else the actor
-returns is preserved in `raw_json` so we never lose information
-even if the actor's schema changes.
+(A9, A10, D8, D9, E4, F1, F3, G1, G5, G10, G11, G12) plus high-value
+fields the gateway reliably returns (clinic address, services,
+photo URLs, summary, recommendation %). Anything else is preserved
+in `raw_json` so we never lose information even if Practo changes
+its Redux shape.
 """
 
 from datetime import datetime
@@ -41,18 +43,28 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 PractoFetchStatus = Literal[
-    "pending",    # URL known, gateway not yet run
-    "ok",         # profile parsed successfully
-    "not_found",  # 404 / no Redux state — the URL is dead or wrong
-    "blocked",    # Akamai challenge intercepted us; pause and retry later
-    "error",      # unexpected exception during navigation / parsing
+    "pending",        # URL known, gateway not yet run
+    "ok",             # profile parsed successfully
+    "not_found",      # 404 / no Redux state — the URL is dead or wrong
+    "no_url_found",   # discovery searched Practo but no candidate matched
+    "blocked",        # Akamai challenge intercepted us; pause and retry later
+    "error",          # unexpected exception during navigation / parsing
 ]
 """How the most recent fetch attempt for this row went.
 
-`pending` is the only status with `fetched_at=None`. The four
-terminal statuses (`ok`, `not_found`, `blocked`, `error`) all have
-`fetched_at` populated so callers can decide retry policy based
-on age.
+`pending` is the only status with `fetched_at=None`. The five
+terminal statuses (`ok`, `not_found`, `no_url_found`, `blocked`,
+`error`) all have `fetched_at` populated so callers can decide
+retry policy based on age.
+
+`no_url_found` is set by the URL-discovery controller (which
+searches Practo by name) when no candidate clears the match
+threshold. Persisting it lets the orchestrator skip future
+discovery for the same lead until it's manually re-tried — without
+this, every orchestrator pass would re-search the same dead leads.
+The row carries no `practo_url` (or a placeholder); it's a
+sentinel telling the enrichment controller "don't bother, there's
+nothing to fetch".
 
 `blocked` is special — it signals an environmental problem (Akamai
 fingerprinted us) rather than a per-URL one. The controller stops
@@ -77,10 +89,17 @@ class PractoProfile(BaseModel):
     """Foreign key to `raw_leads.place_id`. One Practo profile per lead."""
 
     practo_url: str
-    """The URL given to the Apify actor. Either a Practo profile URL
-    (`/<city>/doctor/<slug>`) or a search URL the actor expands. This
-    is the *input* — the actor may emit a different canonical URL in
-    `profile_url`."""
+    """The Practo profile URL associated with this lead. Either set
+    manually by an operator or by the URL-discovery controller when a
+    candidate cleared the match threshold. The enrichment gateway
+    navigates to this URL.
+
+    Empty string `""` is permitted only when `fetch_status='no_url_found'`
+    — a sentinel row left by the discovery controller to record that
+    we searched and found no match, so future discovery passes can
+    skip this lead. The enrichment controller filters by status and
+    won't try to fetch from an empty URL.
+    """
 
     # ── core identity (G1) ───────────────────────────────────────────
 

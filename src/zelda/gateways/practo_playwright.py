@@ -56,10 +56,7 @@ to hydrate before we read state.
 
 from __future__ import annotations
 
-import json
-import random
 import re
-import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -71,27 +68,17 @@ from playwright.sync_api import (
     Page,
     Playwright,
     TimeoutError as PlaywrightTimeoutError,
-    sync_playwright,
 )
 
+from zelda.gateways._practo_browser import (
+    DEFAULT_USER_AGENT,
+    DEFAULT_VIEWPORT,
+    is_challenge_page,
+    launch_chromium,
+    make_context,
+    polite_sleep,
+)
 from zelda.models.practo_profile import PractoFetchStatus, PractoProfile
-
-
-_DEFAULT_USER_AGENT = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/130.0.0.0 Safari/537.36"
-)
-
-# Akamai's challenge page returns a near-empty document with this title.
-_CHALLENGE_TITLE = "Challenge Validation"
-
-# Strip the `navigator.webdriver` flag at context-init time. Combined
-# with `--disable-blink-features=AutomationControlled` and Chrome's
-# new headless mode (`--headless=new`), this passes Practo's Akamai.
-_STEALTH_INIT_SCRIPT = (
-    'Object.defineProperty(navigator, "webdriver", {get: () => undefined});'
-)
 
 
 # ── result type ─────────────────────────────────────────────────────
@@ -138,36 +125,21 @@ class PractoPlaywrightGateway:
         page_load_timeout_ms: int = 30_000,
         post_load_settle_range_s: tuple[float, float] = (1.5, 2.5),
         user_agent: str | None = None,
-        viewport: tuple[int, int] = (1366, 900),
+        viewport: tuple[int, int] = DEFAULT_VIEWPORT,
     ) -> None:
         self._playwright = playwright
         self._browser = browser
         self._page_load_timeout_ms = page_load_timeout_ms
         self._post_load_settle_range_s = post_load_settle_range_s
-        self._user_agent = user_agent or _DEFAULT_USER_AGENT
+        self._user_agent = user_agent or DEFAULT_USER_AGENT
         self._viewport = viewport
         self._context: BrowserContext | None = None
 
     @classmethod
     def launch(cls, **kwargs: Any) -> "PractoPlaywrightGateway":
-        """Spawn a Playwright + Chromium pair tuned for Practo's Akamai.
-
-        We pass `headless=False` to Playwright but add `--headless=new`
-        to the Chrome args ourselves. That combination uses Chrome's
-        modern headless mode (which shares the rendering pipeline with
-        headful Chrome and is indistinguishable to fingerprinting),
-        rather than the older `headless_shell` binary that Playwright
-        defaults to when `headless=True` is passed.
-        """
-        pw = sync_playwright().start()
-        browser = pw.chromium.launch(
-            headless=False,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--headless=new",
-                "--no-sandbox",
-            ],
-        )
+        """Spawn a Playwright + Chromium pair tuned for Practo's Akamai
+        (see `_practo_browser.launch_chromium`)."""
+        pw, browser = launch_chromium()
         return cls(playwright=pw, browser=browser, **kwargs)
 
     # ── lifecycle ────────────────────────────────────────────────────
@@ -203,12 +175,11 @@ class PractoPlaywrightGateway:
                 self._context.close()
             except Exception:  # noqa: BLE001
                 pass
-        self._context = self._browser.new_context(
+        self._context = make_context(
+            self._browser,
             user_agent=self._user_agent,
-            viewport={"width": self._viewport[0], "height": self._viewport[1]},
-            locale="en-US",
+            viewport=self._viewport,
         )
-        self._context.add_init_script(_STEALTH_INIT_SCRIPT)
 
     def _ensure_context(self) -> BrowserContext:
         if self._context is None:
@@ -249,10 +220,10 @@ class PractoPlaywrightGateway:
             final_url = page.url
 
             # Settle for the React app to hydrate __REDUX_STATE__.
-            self._polite_sleep(*self._post_load_settle_range_s)
+            polite_sleep(*self._post_load_settle_range_s)
 
             title = page.title()
-            if _is_challenge_page(title=title, html=page.content()):
+            if is_challenge_page(title=title, html=page.content()):
                 logger.warning(
                     "practo.fetch.blocked place_id={pid} url={u} title={t!r}",
                     pid=place_id, u=practo_url, t=title,
@@ -350,15 +321,6 @@ class PractoPlaywrightGateway:
             except Exception:  # noqa: BLE001
                 pass
 
-    # ── internals ───────────────────────────────────────────────────
-
-    def _polite_sleep(self, low: float, high: float) -> None:
-        if high <= low:
-            time.sleep(max(0.0, low))
-            return
-        time.sleep(random.uniform(low, high))
-
-
 # JS that runs in the page context to pull every JSON-LD block. Returns
 # a list of parsed objects (or arrays of objects). Errors per-block are
 # silently dropped so a single malformed block doesn't break the rest.
@@ -379,20 +341,6 @@ _JSONLD_EXTRACTOR_JS = r"""
 
 
 # ── pure parsing helpers (unit-testable, no Playwright) ────────────
-
-
-def _is_challenge_page(*, title: str, html: str) -> bool:
-    """Detect Akamai's bot-challenge interstitial.
-
-    Both the title and the visible body shell contain "Challenge
-    Validation" on every flavour of the challenge we've seen. Body
-    HTML is short (~1.8 KB) compared to a real profile (>500 KB),
-    but the size signal is wobbly, so we go by content."""
-    if title and _CHALLENGE_TITLE in title:
-        return True
-    if _CHALLENGE_TITLE in (html or ""):
-        return True
-    return False
 
 
 def parse_practo_state(

@@ -34,7 +34,7 @@ def test_enriched_profile_is_not_pending():
 
 
 def test_terminal_failure_statuses_are_not_enriched():
-    for status in ("not_found", "blocked", "error"):
+    for status in ("not_found", "no_url_found", "blocked", "error"):
         p = _stub(fetch_status=status, fetched_at=_T)
         assert p.is_pending is False
         assert p.is_enriched is False
