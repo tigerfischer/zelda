@@ -1,0 +1,27 @@
+{# Shared macro — renders one MatchableRow as a readable block.
+   Import this in other templates with:
+     {% from "matching/_row.j2" import format_row %}
+#}
+
+{% macro format_row(row, label, distance_km=none) %}
+**{{ label }}** (source: {{ row.source }})
+  Name: {{ row.name }}
+{% if row.address %}
+  Address: {{ row.address }}
+{% endif %}
+{% if row.phone %}
+  Phone: {{ row.phone }}
+{% endif %}
+{% if row.website %}
+  Website: {{ row.website }}
+{% endif %}
+{% if row.google_maps_url %}
+  Google Maps URL: {{ row.google_maps_url }}
+{% endif %}
+{% if row.rating is not none %}
+  Rating: {{ row.rating }} ({{ row.review_count }} reviews)
+{% endif %}
+{% if distance_km is not none %}
+  Distance to other listing: {{ distance_km | round(2) }} km
+{% endif %}
+{% endmacro %}

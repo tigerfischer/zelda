@@ -1,0 +1,34 @@
+You are merging dental clinic listings from multiple sources into one canonical lead record.
+
+The listings below have been confirmed (by two independent reviewers) to refer to
+the same physical dental clinic.
+
+{% for row in rows %}
+**Listing {{ loop.index }}** (source: {{ row.source }}, key: {{ row.key }})
+  Name: {{ row.name }}
+{% if row.address %}  Address: {{ row.address }}
+{% endif %}
+{% if row.phone %}  Phone: {{ row.phone }}
+{% endif %}
+{% if row.website %}  Website: {{ row.website }}
+{% endif %}
+{% if row.google_maps_url %}  Google Maps: {{ row.google_maps_url }}
+{% endif %}
+{% if row.rating is not none %}  Rating: {{ row.rating }} ({{ row.review_count }} reviews)
+{% endif %}
+
+{% endfor %}
+{% if edges %}
+**Match evidence:**
+{% for edge in edges %}
+  • {{ edge.source_a }}↔{{ edge.source_b }} (confidence {{ edge.confidence | round(2) }}): {{ edge.reviewer_reason }}
+{% endfor %}
+{% endif %}
+
+Produce a single canonical record. Field priority:
+- Name: Google Places > Practo > Lybrate
+- Address: Google Places > Practo > Lybrate
+- Phone: Lybrate (real direct numbers) > Google Places
+- Website: Google Places > Practo
+
+Use the `canonical_lead` tool to record your output.
