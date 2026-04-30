@@ -1,0 +1,566 @@
+[
+  [
+    {
+      "@context": "https://schema.org/",
+      "@type": "Dentist",
+      "name": "Dr. K A Mohan",
+      "url": "https://www.practo.com/bangalore/doctor/dr-k-a-mohan",
+      "description": "Dr. K A Mohan is a Dentist and Orthodontist in Domlur 2nd Stage, Indiranagar, Bangalore and has an experience of 47 years in these fields. Dr. K A Mohan practices at Dental DeCare, Indiranagar &amp; Koramangala 3 Block, Bangalore. He completed BDS from Govt. Dental College and Research Institute, Bangalore in 1969 and MDS - Orthodontics &amp; Dentofacial Orthopaedics from Govt. Dental College and Research Institute, Bangalore in 1977.\n\nHe is a member of Karnataka State Dental Council, Indian Orthodontic Society and Indian Dental Association.",
+      "medicalSpecialty": [
+        "Orthodontist",
+        "Dentist",
+        "Dental Surgeon"
+      ],
+      "award": [
+        "Best Teacher Award by MRADC",
+        "Best Clinicial Exellence by IOS",
+        "Best Clinicial Exelence By Ios"
+      ],
+      "memberOf": [
+        {
+          "photo": [
+            {
+              "@type": "CreativeWork",
+              "url": "https://images1-fabric.practo.com/practices/1138332/dental-de-care-bangalore-64490a013290b.jpg"
+            },
+            {
+              "@type": "CreativeWork",
+              "url": "https://images1-fabric.practo.com/practices/1138332/dental-de-care-bangalore-64490a0ae4efc.jpg"
+            },
+            {
+              "@type": "CreativeWork",
+              "url": "https://images1-fabric.practo.com/practices/1138332/dental-de-care-bangalore-64490a12813e0.jpg"
+            },
+            {
+              "@type": "CreativeWork",
+              "url": "https://images1-fabric.practo.com/practices/1138332/dental-de-care-bangalore-64490a18b0768.jpg"
+            },
+            {
+              "@type": "CreativeWork",
+              "url": "https://images1-fabric.practo.com/practices/1138332/dental-de-care-bangalore-64490a1f280cb.jpg"
+            },
+            {
+              "@type": "CreativeWork",
+              "url": "https://images1-fabric.practo.com/practices/1138332/dental-de-care-bangalore-64490a257e585.jpg"
+            },
+            {
+              "@type": "CreativeWork",
+              "url": "https://images1-fabric.practo.com/practices/1138332/dental-de-care-bangalore-667668a929330.png"
+            },
+            {
+              "@type": "CreativeWork",
+              "url": "https://images1-fabric.practo.com/practices/1138332/dental-de-care-bangalore-667668a9cc755.png"
+            },
+            {
+              "@type": "CreativeWork",
+              "url": "https://images1-fabric.practo.com/practices/1138332/dental-de-care-bangalore-667668aa8a259.png"
+            },
+            {
+              "@type": "CreativeWork",
+              "url": "https://images1-fabric.practo.com/practices/1138332/dental-de-care-bangalore-667668ab65083.png"
+            }
+          ],
+          "openingHours": [
+            "Mo-Sa 10:00-13:15,  15:00-20:00"
+          ],
+          "@type": "MedicalClinic",
+          "name": "Dental De Care",
+          "url": "https://www.practo.com/bangalore/clinic/dental-de-care-indiranagar-indiranagar",
+          "priceRange": "INR 500",
+          "currenciesAccepted": "INR",
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "111, 4th Main, Landmark: Kalki Dhyana Mandir",
+            "addressLocality": "Domlur",
+            "addressRegion": "Bangalore"
+          },
+          "image": "https://images1-fabric.practo.com/dental-de-care-indiranagar-1486218540-5895e52ce088b.png",
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "worstRating": "1",
+            "bestRating": "5",
+            "ratingValue": 5,
+            "reviewCount": 365
+          },
+          "geo": {
+            "@type": "GeoCoordinates",
+            "latitude": 12.962608873427,
+            "longitude": 77.64005580917
+          },
+          "hasMap": {
+            "@type": "Map",
+            "url": "http://maps.google.com/maps?f=d&amp;daddr=12.962608873427,77.64005580917&amp;hl=en"
+          }
+        }
+      ],
+      "priceRange": "₹500 consultation fee",
+      "openingHoursSpecification": [
+        {
+          "@type": "OpeningHoursSpecification",
+          "closes": "20:00",
+          "dayOfWeek": "http://schema.org/MONDAY",
+          "opens": "10:00"
+        },
+        {
+          "@type": "OpeningHoursSpecification",
+          "closes": "20:00",
+          "dayOfWeek": "http://schema.org/TUESDAY",
+          "opens": "10:00"
+        },
+        {
+          "@type": "OpeningHoursSpecification",
+          "closes": "20:00",
+          "dayOfWeek": "http://schema.org/WEDNESDAY",
+          "opens": "10:00"
+        },
+        {
+          "@type": "OpeningHoursSpecification",
+          "closes": "20:00",
+          "dayOfWeek": "http://schema.org/THURSDAY",
+          "opens": "10:00"
+        },
+        {
+          "@type": "OpeningHoursSpecification",
+          "closes": "20:00",
+          "dayOfWeek": "http://schema.org/FRIDAY",
+          "opens": "10:00"
+        },
+        {
+          "@type": "OpeningHoursSpecification",
+          "closes": "20:00",
+          "dayOfWeek": "http://schema.org/SATURDAY",
+          "opens": "10:00"
+        }
+      ],
+      "address": {
+        "@type": "PostalAddress",
+        "@context": "https://schema.org",
+        "streetAddress": "111, 4th Main",
+        "addressLocality": "Domlur",
+        "addressRegion": "Bangalore",
+        "postalCode": ""
+      },
+      "image": "https://images1-fabric.practo.com/doctor/258986/dr-k-a-mohan-63f491d3be6a4.jpg",
+      "makesOffer": {
+        "@type": "Offer",
+        "name": [
+          "Crowns and Bridges Fixing",
+          "Complete/Partial Dentures Fixing",
+          "Impaction / Impacted Tooth Extraction",
+          " Tooth Extraction",
+          "Dental Fillings",
+          "Scaling / Polishing",
+          "Teeth Whitening",
+          "Orthodontic Treatment",
+          "Jaw Orthopedics",
+          "Orthognathic Surgery",
+          "Presurgical Orthodontics",
+          "Dental Braces Fixing",
+          "Metal Braces Fixing",
+          "Straightening Teeth (Conventional Braces)",
+          "Braces Adjustment",
+          "Invisible/Clear Braces",
+          "Ceramic Dental Braces",
+          "Dental X-Ray",
+          "Dental Sealant",
+          "Dental prophylaxis",
+          "Dental Examinations",
+          "Dental Restoration",
+          "Oral Surgery Procedures",
+          "Palate Surgery",
+          "Periodontal Flap Surgery",
+          "Flap Surgery",
+          "Laser Gum Surgery",
+          "Mucogingival Surgery",
+          "Surgical Tooth Extraction",
+          "Wisdom Tooth Extraction",
+          "Tooth Coloured Fillings",
+          "Tooth Air Polishing",
+          "Discolored Tooth Restoration",
+          "Acrylic Partial Denture",
+          "Artificial Teeth",
+          "BPS Dentures Fixing",
+          "Cast Partial Denture",
+          "Conservative Dentistry",
+          "Cosmetic/ Aesthetic Dentistry",
+          "Endo Surgery Or Apicoectomy",
+          "Fixed Partial Denture (FPD)",
+          "Immediate Dentures",
+          "Inlays and Onlays",
+          "Laminates",
+          "Maxillo Facial Prosthodontics",
+          "Post and Core",
+          "RCT - Root Canal Treatment",
+          "Smile Design",
+          "Teeth Reshaping",
+          "Thineers",
+          "Veneers / Laminates",
+          "Wedding Smile Planner",
+          "Zirconia Crowns",
+          "Oral Rehabilitation",
+          "Pulpectomy",
+          "Teeth - Jewellery",
+          "Space Maintainers",
+          "Oral Lesions Screening",
+          "Bleeding Gums Treatment",
+          "Gap Closing",
+          "Dental Implant Fixing",
+          "Temporomandibular Joint Disorder",
+          "Facial Trauma",
+          "Facial Aesthetic Surgery",
+          "Cleft Lip Repair",
+          "Ceramic Crowns and Bridges Fixing",
+          "Implant Retained Dentures",
+          "Tongue Tie Release",
+          "Flexible Partial/Complete Denture",
+          "Cosmetic Filling",
+          "Pit and Fissure Sealant",
+          "Occlusual Therapy",
+          "Implant Rehabilitation",
+          "Straightening Teeth (Invisalign) ",
+          "Mouth Guard",
+          "Dental Checkup (General)",
+          "RCT - Single Sitting",
+          "Full Mouth Rehabilitation",
+          "Partial Denture of mold",
+          "Preparation for Dentures",
+          "Fixed Prosthodontics",
+          "Gum Disease Treatment/ Surgery",
+          "Retention implant dentures",
+          "Overdentures Fixing",
+          "Microscope Assisted Root Canal Treatment",
+          "Bad Breath (Halitosis) Treatment",
+          "General  Dentistry",
+          "Invisible Orthodontics",
+          "Ceramic Veneers / Crowns ",
+          "Re-Root Canal Treatment",
+          "Oral &amp; Maxillofacial Surgery",
+          "Porcelain Veneers",
+          "Teeth Straightening",
+          "Mouth Bleed",
+          "Gingivoplasty",
+          "Full Denture (Acrylic)",
+          "Partial Denture (Metal Based)",
+          "Composite Bondings",
+          "Cosmetic Makeovers",
+          "Porcelain inlays and onlays",
+          "Removal Partial Denture (RPD)",
+          "Dental screening and prophylaxis",
+          "Cosmetic Veneers/Bonding",
+          "Pyorrhoea Treatment",
+          "Implant Prosthesis",
+          "Acrylic prosthesis",
+          "Advanced surgery in Implantology",
+          "Damon System",
+          "Facet Dental",
+          "Restoration Aesthetics",
+          "Maxillofacial Prosthetics",
+          "Temporomandibular dysfunction",
+          "Temporomandibular Joint Dysfunction - ATM",
+          "Traumatic injuries Dental",
+          "Laser Gingivoplasty",
+          "Laser Depigmentation",
+          "Laser Lip Surgery",
+          "Maxillary Obturator Fixing",
+          "Dental Sleep Medicine (Snoring and Sleep Apnea Management)",
+          "childrens dentistry",
+          "Bone Grafting for Dental Implants",
+          "TMJ Therapy",
+          "Orthotic Splints",
+          "Conscious Sedation",
+          "Laser Dentistry",
+          "smile makeovers",
+          " Veneers",
+          "airway dentistry",
+          "Braces/Invisalign",
+          "full-mouth Reconstruction",
+          "Bridges &amp; Dentures",
+          "Paediatrics Preventive Dental Treatment",
+          "Restorations &amp; Root Canal",
+          "DENTISTRY",
+          "Dental Implant Surgery",
+          "Dental Braces",
+          "Teeth Aligners",
+          "Ortodonti",
+          "Dentofacial Orthopaedics",
+          "Kroner Og Broer",
+          "Fiksering Af Komplette/Delvise Proteser",
+          "Fiksering Af Stød/Påvirket Tandudtrækning",
+          "Tandudtrækning",
+          "Tandfyldninger",
+          "Skalering/Polering Af Tænder",
+          "Hvidning Af Tand",
+          "Tandregulering",
+          "Kæbeortopædi",
+          "Ortopædisk Kirurgi",
+          "Prækirurgisk Ortodonti",
+          "Tandbøjler",
+          "Fiksering",
+          "Lige Metalbøjler",
+          "Fastgørelse Af Bøjler (Tilpasning)",
+          "Usynlige/Klare Bøjler",
+          "Keramiske Tandbøjler",
+          "Tandrøntgen",
+          "Tandforsegling",
+          "Tandkroner",
+          "Tandprofylakse",
+          "Tandundersøgelser",
+          "Tandrestaurering",
+          "Oralkirurgi",
+          "Ganeoperation",
+          "Parodontallapoperation",
+          "Klapkirurgi",
+          "Lasergummikirurgi",
+          "Slimhindekirurgi",
+          "Kirurgisk Tandudtrækning",
+          "Tandimplantat",
+          "Tandkontrol (Generelt)",
+          "Invisalign",
+          "Mundbeskyttelse",
+          "Tandkontrol",
+          "Tandlaser",
+          "Gingivoplastik",
+          "Laser Depigmentering",
+          "Læbeoperation",
+          "Kæbeobturator",
+          "Fixering Af Dental Søvnmedicin (Snorken Og Søvnapnøbehandling)",
+          "Børnetandpleje",
+          "Knogletransplantation Til Tandimplantater",
+          "TMJ Terapi",
+          "Ortotiske Skinner",
+          "Re-Smoot-Protese",
+          "CT-R. Thineers",
+          "Finer / Laminater",
+          "Zirconia Kroner",
+          "Pulpektomi",
+          "Tænder – Smykker",
+          "Orale Læsioner",
+          "Blødning Gums Behandling",
+          "Gab Lukning",
+          "Temporomandibular Ledlidelse",
+          "Facial Æstetisk Kirurgi",
+          "Reparation",
+          "Clemic Crowned Tandproteser",
+          "Fleksibel Delvis/Fuldstændig Protese",
+          "Kosmetisk Fyldning Af Pit Og Fissurforsegling",
+          "Okklusuel Terapi",
+          "Implantatrehabilitering",
+          "Rehabilitering Af Tænder (Invisalign)",
+          "Laser Læbeoperation",
+          "Artificial Teeth Implant",
+          "Dental Extraction",
+          "Scaling and Polishing",
+          "Teeth Cleaning and Polishing",
+          "Tooth Polishing",
+          "Dental Implant",
+          "Dental Filling",
+          "Root canal treatment",
+          "Tooth Whitening Treatment",
+          "Braces for adults &amp; teens",
+          "Impacted Tooth Extraction",
+          "Caps/Crowns &amp; Bridges",
+          "Complete Dentures (CD)",
+          "Fixing Dental Gaps"
+        ]
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "worstRating": "1",
+        "bestRating": "100",
+        "ratingValue": "94",
+        "ratingCount": "78",
+        "reviewCount": 42
+      },
+      "review": [
+        {
+          "@type": "Review",
+          "datePublished": "2026-01-08T05:36:03",
+          "reviewBody": "Dr. K A Mohan gave me an extensive consultation, listened carefully to all my questions, and explained every detail about my condition and treatment plan. The clinic was very clean, the staff were prompt and helpful, and I felt it was excellent value for my time and money.",
+          "author": {
+            "@type": "Person",
+            "name": "Verified Patient"
+          }
+        },
+        {
+          "@type": "Review",
+          "datePublished": "2024-07-09T13:46:03",
+          "reviewBody": "This is my 1st visit to Dr.Mohan &amp; Dr. Pramod for tooth extraction. As an individual I had a lot of anxiety, apprehensions etc about the process, treatment, recovery etc.\nI must say with 100 % assurance that the overall experience was excellent.  Both Uncle Dr .Mohan and Dr.Pramod explained the situation very well, most importantly made me feel extremely relaxed and completed the procedure as per planned timelines.\nThis is a place I would highly recommend!  5/5 to me",
+          "author": {
+            "@type": "Person",
+            "name": "Vignesh Menon"
+          }
+        },
+        {
+          "@type": "Review",
+          "datePublished": "2022-08-20T22:29:28",
+          "reviewBody": "Good clarity in explaining the problem and the pros and cons. Further left his brief and dwelt into the importance and care a child needs to give to dental care to have a better adulthood from dental point of view.\nAt time I thought am I interacting with a Dental Dr or a Professor who is addressing his students. \n\nIn a nutshell was a pleasant and pleasurable experience. ",
+          "author": {
+            "@type": "Person",
+            "name": "Ghana Shyam Nair"
+          }
+        },
+        {
+          "@type": "Review",
+          "datePublished": "2023-08-25T03:28:27",
+          "reviewBody": "I visited the dentist with tooth discomfort and received a quick diagnosis of a wisdom tooth that needed extraction. The procedure took less than 10 minutes the next day, and I was given clear instructions for post-extraction care. Despite my initial apprehension, I experienced no pain throughout the process or afterwards* *** ******** ********** efficient procedure, and effective medication made the experience much better than expected. I&#039;ll definitely return for future concerns.",
+          "author": {
+            "@type": "Person",
+            "name": "Priyanka Kalra"
+          }
+        }
+      ]
+    },
+    {
+      "@context": "https://schema.org/",
+      "@type": "ImageObject",
+      "contentUrl": "https://imagesx.practo.com/providers/dr-k-a-mohan-orthodontist-bangalore-5021e4f3-7a64-4825-8958-c323fdd45b69.jpg?i_type=t_70x70-4x-webp"
+    }
+  ],
+  {
+    "@context": "http://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "item": {
+          "@id": "https://www.practo.com/",
+          "name": "Home"
+        }
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "item": {
+          "@id": "https://www.practo.com/bangalore",
+          "name": "Bangalore"
+        }
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "item": {
+          "@id": "https://www.practo.com/bangalore/dentist",
+          "name": "Dentist"
+        }
+      },
+      {
+        "@type": "ListItem",
+        "position": 4,
+        "item": {
+          "@id": "https://www.practo.com/bangalore/orthodontist",
+          "name": "Orthodontist"
+        }
+      },
+      {
+        "@type": "ListItem",
+        "position": 5,
+        "item": {
+          "@id": "https://www.practo.com/bangalore/dentist/domlur",
+          "name": "Domlur"
+        }
+      }
+    ]
+  },
+  {
+    "@context": "http://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Where does Dr. K A Mohan practice?",
+        "answerCount": 1,
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Dr. K A Mohan practices at Dental De Care - Domlur."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How can I take Dr. K A Mohan&#039;s appointment ?",
+        "answerCount": 1,
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "You can take &lt;a class=&quot;u-t-link&quot; href=&#039;https://www.practo.com/bangalore/doctor/dr-k-a-mohan?utm_source=organic&amp;utm_campaign=faq-profile&#039;&gt;Dr. K A Mohan&#039;s appointment&lt;/a&gt; online through Practo for in-clinic visit with the doctor."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Why do patients visit Dr. K A Mohan?",
+        "answerCount": 1,
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Patients frequently visit Dr. K A Mohan for Crowns and Bridges Fixing, Complete/Partial Dentures Fixing, Impaction / Impacted Tooth Extraction. To see more reasons visit the &lt;a class=&quot;u-t-link&quot; href=&#039;https://www.practo.com/bangalore/doctor/dr-k-a-mohan?utm_source=organic&amp;utm_campaign=faq-profile&#039;&gt;doctor&#039;s profile&lt;/a&gt; on Practo."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What do patients say about Dr. K A Mohan?",
+        "answerCount": 1,
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Dr. K A Mohan has been recommended by 73 patients and has recieved stories from 42 patients. You can &lt;a class=&quot;u-t-link&quot; href=&#039;https://www.practo.com/bangalore/doctor/dr-k-a-mohan/reviews?utm_source=organic&amp;utm_campaign=faq-profile&#039;&gt;read detailed patient stories&lt;/a&gt; of the doctor on Practo."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What is Dr. K A Mohan&#039;s education qualification?",
+        "answerCount": 1,
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Dr. K A Mohan has the following qualifications - BDS, MDS - Orthodontics, BDS (Dentist). You can &lt;a class=&quot;u-t-link&quot; href=&#039;https://www.practo.com/bangalore/doctor/dr-k-a-mohan?utm_source=organic&amp;utm_campaign=faq-profile&#039;&gt;book the doctor&lt;/a&gt; through the doctor&#039;s profile on Practo."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What does Dr. K A Mohan specialises in ?",
+        "answerCount": 1,
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "&lt;a class=&quot;u-t-link&quot; href=&#039;https://www.practo.com/bangalore/doctor/dr-k-a-mohan?utm_source=organic&amp;utm_campaign=faq-profile&#039;&gt;Dr. K A Mohan&lt;/a&gt; specialises as Orthodontist, Dentist, Dental Surgeon."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How many years of experience does Dr. K A Mohan have?",
+        "answerCount": 1,
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Dr. K A Mohan has an overall experience of 57 years. View where has Dr. K A Mohan &lt;a class=&quot;u-t-link&quot; href=&#039;https://www.practo.com/bangalore/doctor/dr-k-a-mohan?utm_source=organic&amp;utm_campaign=faq-profile&#039;&gt;practiced in the past&lt;/a&gt;."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Who is Dr. K A Mohan?",
+        "answerCount": 1,
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Dr. K A Mohan is a Dentist and Orthodontist in Domlur 2nd Stage, Indiranagar, Bangalore and has an experience of 47 years in these fields. Dr. K A Mohan practices at Dental DeCare, Indiranagar &amp; Koramangala 3 Block, Bangalore. He completed BDS from Govt. Dental College and Research Institute, Bangalore in 1969 and MDS - Orthodontics &amp; Dentofacial Orthopaedics from Govt. Dental College and Research Institute, Bangalore in 1977.\n\nHe is a member of Karnataka State Dental Council, Indian Orthodontic Society and Indian Dental Association.. &lt;a class=&quot;u-t-link&quot; href=&#039;https://www.practo.com/bangalore/doctor/dr-k-a-mohan?utm_source=organic&amp;utm_campaign=faq-profile&#039;&gt;View more&lt;/a&gt; details about the doctor on Practo."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which treatments are given by an orthodontist?",
+        "answerCount": 1,
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The orthodontist specialises in the following treatments:\n ·Straightening of crooked teeth\n ·Alignment of misaligned teeth\n ·Bad bites (difficulty in chewing due to teeth alignment)\n ·Correct problems during facial growth and development\n ·Treat dental problems in all ages children, teens and adults"
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can an orthodontist perform surgery on my teeth?",
+        "answerCount": 1,
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Orthodontists can carry out the removal of teeth or surgical removal of wisdom tooth. However, he does not play a direct role in surgery. He is responsible for an initial evaluation, pre-surgical orthodontics, planning of the surgery and post-surgical care along with the surgeon who actually performs the surgery."
+        }
+      }
+    ],
+    "provider": {
+      "@type": "Organization",
+      "name": "Dr. K A Mohan",
+      "url": "https://www.practo.com/bangalore/doctor/dr-k-a-mohan"
+    }
+  }
+]
