@@ -347,6 +347,143 @@ def test_enrich_headful_flag():
     assert args.headful is True
 
 
+# ── discover-practo-urls subcommand ──────────────────────────────────
+
+
+def test_discover_practo_urls_basic_args():
+    parser = build_parser()
+    args = parser.parse_args(["discover-practo-urls", "--city", "Ludhiana"])
+    assert args.command == "discover-practo-urls"
+    assert args.city == "Ludhiana"
+    # Defaults
+    assert args.max_leads is None  # default 'all' for this command
+    assert args.threshold == 0.7
+    assert args.max_candidates == 10
+    assert args.dry_run is False
+
+
+def test_discover_practo_urls_requires_city():
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["discover-practo-urls"])
+
+
+def test_discover_practo_urls_max_leads_int():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["discover-practo-urls", "--city", "Ludhiana", "--max-leads", "5"]
+    )
+    assert args.max_leads == 5
+
+
+def test_discover_practo_urls_max_leads_all_means_unlimited():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["discover-practo-urls", "--city", "Ludhiana", "--max-leads", "all"]
+    )
+    assert args.max_leads is None
+
+
+def test_discover_practo_urls_threshold_in_range():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["discover-practo-urls", "--city", "Ludhiana", "--threshold", "0.85"]
+    )
+    assert args.threshold == 0.85
+
+
+def test_discover_practo_urls_threshold_zero_allowed():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["discover-practo-urls", "--city", "Ludhiana", "--threshold", "0"]
+    )
+    assert args.threshold == 0.0
+
+
+def test_discover_practo_urls_threshold_one_allowed():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["discover-practo-urls", "--city", "Ludhiana", "--threshold", "1"]
+    )
+    assert args.threshold == 1.0
+
+
+def test_discover_practo_urls_threshold_rejects_above_one():
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            ["discover-practo-urls", "--city", "Ludhiana", "--threshold", "1.5"]
+        )
+
+
+def test_discover_practo_urls_threshold_rejects_negative():
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            ["discover-practo-urls", "--city", "Ludhiana", "--threshold", "-0.1"]
+        )
+
+
+def test_discover_practo_urls_max_candidates_int():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["discover-practo-urls", "--city", "Ludhiana", "--max-candidates", "20"]
+    )
+    assert args.max_candidates == 20
+
+
+def test_discover_practo_urls_max_candidates_rejects_zero():
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            ["discover-practo-urls", "--city", "Ludhiana", "--max-candidates", "0"]
+        )
+
+
+def test_discover_practo_urls_dry_run_flag():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["discover-practo-urls", "--city", "Ludhiana", "--dry-run"]
+    )
+    assert args.dry_run is True
+
+
+# ── _unit_float type tests ───────────────────────────────────────────
+
+
+def test_unit_float_accepts_zero():
+    from zelda.cli import _unit_float
+    assert _unit_float("0") == 0.0
+
+
+def test_unit_float_accepts_one():
+    from zelda.cli import _unit_float
+    assert _unit_float("1") == 1.0
+
+
+def test_unit_float_accepts_decimal():
+    from zelda.cli import _unit_float
+    assert _unit_float("0.5") == 0.5
+
+
+def test_unit_float_rejects_above_one():
+    from zelda.cli import _unit_float
+    with pytest.raises(argparse.ArgumentTypeError):
+        _unit_float("1.5")
+
+
+def test_unit_float_rejects_negative():
+    from zelda.cli import _unit_float
+    with pytest.raises(argparse.ArgumentTypeError):
+        _unit_float("-0.1")
+
+
+def test_unit_float_rejects_garbage():
+    from zelda.cli import _unit_float
+    with pytest.raises(argparse.ArgumentTypeError):
+        _unit_float("xyz")
+
+
 # ── argument-type helpers ─────────────────────────────────────────────
 
 

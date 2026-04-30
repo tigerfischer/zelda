@@ -64,12 +64,19 @@ Single-source command: captures Google Maps reviews per place via the Playwright
 ```
 python -m zelda enrich --city CITY [--max-leads N|all] [--max-age-days N] [--force-refresh] [--sources google_reviews,practo_profile]
 ```
-**The unified enrichment pipeline.** Iterates over (lead × source) pairs and only fetches what's missing or stale. Each source ([`enrichment_sources.py`](src/zelda/controllers/enrichment_sources.py)) implements three predicates: `can_fetch` (do we have what we need to fetch this lead?), `is_cached_fresh` (recent successful capture exists?), `fetch_for_lead`. The orchestrator skips a fetch on cache-hit AND on no-prerequisite-data, and disables a single source for the rest of the run if it gets blocked — without affecting other sources.
+**The umbrella enrichment pipeline.** This is the single command you run to enrich a city. It iterates over (lead × source) pairs and only fetches what's missing or stale. Each source bundles its own substeps internally — for example, the Practo source does **URL discovery → profile fetch** in one go, with caching at every step so re-runs don't repeat work.
+
+Each source ([`enrichment_sources.py`](src/zelda/controllers/enrichment_sources.py)) implements three predicates: `can_fetch` (can we attempt at all?), `is_cached_fresh` (recent successful capture exists?), `fetch_for_lead`. The orchestrator skips on cache-hit, and disables a single source for the rest of the run if it gets blocked — without affecting other sources.
 
 - `--max-age-days` is the cache window. Default **180 (6 months)**. Source-level: a recent successful Practo capture skips Practo for that lead; same for reviews independently.
 - `--force-refresh` bypasses the cache.
 - `--sources` filters to a subset; default = all registered.
 - Adding a new enrichment source = write a `SourceAdapter` (~50 lines) and register it in the CLI handler. The orchestrator's loop logic doesn't change.
+
+```
+python -m zelda discover-practo-urls --city CITY [--threshold 0.7] [--dry-run]
+```
+**Low-level / advanced.** Standalone Practo URL discovery without running enrichment. Mostly useful for `--dry-run` calibration of the fuzzy-match threshold against a known-good set of leads, or for pre-warming the Practo URL stubs in a separate session if you want to amortize the gateway's per-city listing cache. **You don't need this in the normal flow** — `enrich` invokes URL discovery internally as part of the Practo source.
 
 ### Example flow
 
@@ -77,16 +84,40 @@ python -m zelda enrich --city CITY [--max-leads N|all] [--max-age-days N] [--for
 python -m zelda discover --city Ludhiana --max-results 1
 # discover Ludhiana: deduped=60 new_eligible=58 ... fetched=1 inserted=1 ...
 
-python -m zelda sync --city Ludhiana
-# sync Ludhiana: unsynced=1 sheet_inserted=1 ... artifacts_uploaded=1 ...
-
 python -m zelda enrich --city Ludhiana --max-leads 1
 # enrich Ludhiana: leads=59 after_max_leads=1 ...
 #   [google_reviews] attempted=1 successful=1 ...
-#   [practo_profile] no_prereq=1 attempted=0 ...
+#   [practo_profile] attempted=1 successful=1 ...      ← discovery + profile in one call
+
+python -m zelda sync --city Ludhiana
+# sync Ludhiana: unsynced=1 sheet_inserted=1 ... artifacts_uploaded=1 ...
 ```
 
 Once you've validated end-to-end with low caps, scale up with `--max-results all` / `--max-leads all`.
+
+## Architecture: enrichment as an umbrella
+
+`enrich` is the user-facing umbrella command. Underneath, it composes
+multiple per-source pipelines via `EnrichmentOrchestrator`:
+
+```
+                python -m zelda enrich --city CITY
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+     google_reviews       practo_profile     <future source>
+     (one substep)        (two substeps:     e.g. website probe,
+                          discover URL,      Instagram, IDA registry
+                          fetch profile)
+                              │
+                              ├── PractoSearchGateway  (URL discovery)
+                              └── PractoPlaywrightGateway (profile fetch)
+```
+
+Each source decides internally whether its substeps need to run, based
+on what's already in the DB (180-day cache by default). Adding a new
+source is one new `SourceAdapter` registered in the CLI handler — the
+orchestrator's loop doesn't change.
 
 ## Layout
 

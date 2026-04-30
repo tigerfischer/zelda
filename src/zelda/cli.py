@@ -1,15 +1,22 @@
 """Zelda CLI.
 
 Subcommands:
-    discover       — find dentists in a city via Google Places
-    sync           — push DB → Drive for a city
-    bootstrap      — pull Drive → fresh local DB (cross-machine setup)
-    fetch-reviews  — capture per-place reviews from Google Maps
-    enrich         — run all enrichment sources for a city, source-level cached
+    discover              — find dentists in a city via Google Places
+    sync                  — push DB → Drive for a city
+    bootstrap             — pull Drive → fresh local DB (cross-machine setup)
+    fetch-reviews         — capture per-place reviews from Google Maps
+    discover-practo-urls  — match leads to Practo profile URLs (creates stubs)
+    enrich                — run all enrichment sources for a city (cached)
 
 All subcommands read configuration from `.env` via Settings, wire up
 the appropriate gateway + repo + controller, and print a one-line
 result summary.
+
+Typical end-to-end flow for a city:
+    discover --city CITY                         # → leads in DB
+    discover-practo-urls --city CITY             # → Practo URL stubs
+    enrich --city CITY                           # → reviews + Practo data
+    sync --city CITY                             # → mirror to Drive sheet
 """
 
 import argparse
@@ -18,6 +25,10 @@ import sys
 from zelda.config import Settings
 from zelda.controllers.bootstrap import BootstrapController, BootstrapResult
 from zelda.controllers.discover import DiscoverController, DiscoverResult
+from zelda.controllers.discover_practo_urls import (
+    DiscoverPractoUrlsController,
+    DiscoverPractoUrlsResult,
+)
 from zelda.controllers.enrich_practo import EnrichPractoController
 from zelda.controllers.enrichment_orchestrator import (
     EnrichmentOrchestrator,
@@ -36,6 +47,7 @@ from zelda.gateways.google_drive import GoogleDriveGateway
 from zelda.gateways.google_places import GooglePlacesGateway
 from zelda.gateways.google_reviews import GoogleReviewsGateway
 from zelda.gateways.practo_playwright import PractoPlaywrightGateway
+from zelda.gateways.practo_search import PractoSearchGateway
 from zelda.repositories.practo_profile_repo import PractoProfileRepository
 from zelda.repositories.raw_lead_repo import RawLeadRepository
 from zelda.repositories.review_repo import ReviewRepository
@@ -78,6 +90,19 @@ def _non_negative_float(v: str) -> float:
         ) from e
     if f < 0:
         raise argparse.ArgumentTypeError(f"must be >= 0, got {f}")
+    return f
+
+
+def _unit_float(v: str) -> float:
+    """Float in the closed interval [0.0, 1.0]."""
+    try:
+        f = float(v)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(
+            f"must be a number in [0.0, 1.0], got {v!r}"
+        ) from e
+    if not 0.0 <= f <= 1.0:
+        raise argparse.ArgumentTypeError(f"must be in [0.0, 1.0], got {f}")
     return f
 
 
@@ -161,6 +186,49 @@ def build_parser() -> argparse.ArgumentParser:
         "--headful",
         action="store_true",
         help="Show the browser window (off by default; useful for debug).",
+    )
+
+    p_dpu = sub.add_parser(
+        "discover-practo-urls",
+        help=(
+            "search Practo for each lead in a city and persist a stub "
+            "row when a candidate matches above the score threshold"
+        ),
+    )
+    p_dpu.add_argument("--city", required=True, help="City name, e.g. Ludhiana")
+    p_dpu.add_argument(
+        "--max-leads",
+        type=_max_results_type,
+        default=None,
+        help=(
+            "Cap on leads this run searches Practo for. "
+            "0 = none; 'all' = unlimited. Default: all "
+            "(unlike other commands — Practo search per lead is cheap "
+            "and benefits from the gateway's per-city listing cache)."
+        ),
+    )
+    p_dpu.add_argument(
+        "--threshold",
+        type=_unit_float,
+        default=0.7,
+        help=(
+            "Fuzzy-match score threshold (0.0–1.0). A candidate is "
+            "treated as a match when its score >= threshold. Default: 0.7."
+        ),
+    )
+    p_dpu.add_argument(
+        "--max-candidates",
+        type=_positive_int,
+        default=10,
+        help="Max candidates per Practo SERP page. Default: 10.",
+    )
+    p_dpu.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Compute matches but do NOT upsert stubs. Useful for "
+            "calibrating the threshold without polluting the DB."
+        ),
     )
 
     p_enr = sub.add_parser(
@@ -361,6 +429,64 @@ def cmd_fetch_reviews(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+def cmd_discover_practo_urls(args: argparse.Namespace, settings: Settings) -> int:
+    """Search Practo for each lead in `--city` and persist URL stubs.
+
+    Wires up:
+      - PractoSearchGateway (Playwright)
+      - PractoProfileRepository
+      - DiscoverPractoUrlsController
+
+    Output is row-by-row outcome counts; the per-lead detail goes to
+    loguru. The gateway's per-city listing cache means N searches in
+    one city pay roughly one listing fetch worth of work.
+    """
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
+
+    lead_repo = RawLeadRepository(settings.db_path)
+    practo_repo = PractoProfileRepository(settings.db_path)
+    gw = PractoSearchGateway.launch()
+
+    try:
+        leads = lead_repo.get_for_city(args.city)
+        if args.max_leads is not None:
+            leads = leads[: args.max_leads]
+        controller = DiscoverPractoUrlsController(
+            gateway=gw,
+            repo=practo_repo,
+            max_candidates_per_search=args.max_candidates,
+        )
+        result: DiscoverPractoUrlsResult = controller.discover_for_leads(
+            leads,
+            min_match_score=args.threshold,
+            dry_run=args.dry_run,
+        )
+    finally:
+        try:
+            gw.close()
+        except Exception:  # noqa: BLE001
+            pass
+        practo_repo.close()
+        lead_repo.close()
+
+    print(
+        f"discover-practo-urls {args.city}: "
+        f"attempted={result.n_attempted} "
+        f"matched={result.n_matched} "
+        f"no_match={result.n_no_match} "
+        f"already_known={result.n_already_known} "
+        f"blocked={result.n_blocked} "
+        f"errored={result.n_error} "
+        f"stopped_early={result.stopped_early} "
+        f"dry_run={args.dry_run}"
+    )
+    if result.errors:
+        return 1
+    if result.stopped_early:
+        return 2
+    return 0
+
+
 def cmd_enrich(args: argparse.Namespace, settings: Settings) -> int:
     """Run all enrichment sources for a city via the orchestrator.
 
@@ -386,15 +512,16 @@ def cmd_enrich(args: argparse.Namespace, settings: Settings) -> int:
     practo_repo = PractoProfileRepository(settings.db_path)
 
     headless = not args.headful
-    # One Playwright runtime shared across both gateways. Sync API only
-    # permits one runtime per process, so the gateways accept an
-    # injected pw via `playwright=...` and skip stopping it on close
-    # (their `owns_playwright` flag).
+    # One Playwright runtime shared across all three gateways (reviews,
+    # practo profile enrich, practo URL search). Sync API only permits
+    # one runtime per process, so each gateway accepts an injected pw
+    # via `playwright=...` and skips stopping it on close.
     from playwright.sync_api import sync_playwright as _sync_playwright
 
     pw = _sync_playwright().start()
     reviews_gw = GoogleReviewsGateway.launch(headless=headless, playwright=pw)
-    practo_gw = PractoPlaywrightGateway.launch(playwright=pw)
+    practo_enrich_gw = PractoPlaywrightGateway.launch(playwright=pw)
+    practo_search_gw = PractoSearchGateway.launch(playwright=pw)
 
     try:
         reviews_ctrl = FetchReviewsController(
@@ -403,8 +530,12 @@ def cmd_enrich(args: argparse.Namespace, settings: Settings) -> int:
             lead_repo=lead_repo,
             artifacts_dir=reviews_artifacts_dir,
         )
-        practo_ctrl = EnrichPractoController(
-            gateway=practo_gw,
+        practo_enrich_ctrl = EnrichPractoController(
+            gateway=practo_enrich_gw,
+            repo=practo_repo,
+        )
+        practo_discover_ctrl = DiscoverPractoUrlsController(
+            gateway=practo_search_gw,
             repo=practo_repo,
         )
         reviews_adapter = GoogleReviewsSourceAdapter(
@@ -413,7 +544,8 @@ def cmd_enrich(args: argparse.Namespace, settings: Settings) -> int:
             max_reviews_per_place=args.max_reviews_per_place,
         )
         practo_adapter = PractoSourceAdapter(
-            controller=practo_ctrl,
+            enrich_controller=practo_enrich_ctrl,
+            discover_controller=practo_discover_ctrl,
             practo_repo=practo_repo,
         )
         orchestrator = EnrichmentOrchestrator(
@@ -428,16 +560,12 @@ def cmd_enrich(args: argparse.Namespace, settings: Settings) -> int:
             force_refresh=args.force_refresh,
         )
     finally:
-        # Close the gateways (their close() now respects owns_playwright,
-        # so neither will stop the shared pw runtime).
-        try:
-            reviews_gw.close()
-        except Exception:  # noqa: BLE001
-            pass
-        try:
-            practo_gw.close()
-        except Exception:  # noqa: BLE001
-            pass
+        # Close gateways (each respects owns_playwright; none stop pw).
+        for gw in (reviews_gw, practo_enrich_gw, practo_search_gw):
+            try:
+                gw.close()
+            except Exception:  # noqa: BLE001
+                pass
         # Now stop the shared Playwright once.
         try:
             pw.stop()
@@ -484,6 +612,7 @@ _HANDLERS = {
     "sync": cmd_sync,
     "bootstrap": cmd_bootstrap,
     "fetch-reviews": cmd_fetch_reviews,
+    "discover-practo-urls": cmd_discover_practo_urls,
     "enrich": cmd_enrich,
 }
 

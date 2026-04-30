@@ -183,30 +183,44 @@ def test_reviews_adapter_fetch_for_lead_delegates_to_controller(review_repo):
 # ── PractoSourceAdapter ────────────────────────────────────────────────
 
 
+def _make_practo_adapter(
+    enrich_controller=None,
+    discover_controller=None,
+    repo=None,
+    *,
+    threshold: float = 0.7,
+):
+    """Helper: build a PractoSourceAdapter with sensible MagicMock
+    defaults for any arg not supplied."""
+    return PractoSourceAdapter(
+        enrich_controller=enrich_controller or MagicMock(),
+        discover_controller=discover_controller or MagicMock(),
+        practo_repo=repo or MagicMock(),
+        discover_min_match_score=threshold,
+    )
+
+
 def test_practo_adapter_name():
-    adapter = PractoSourceAdapter(MagicMock(), MagicMock())
-    assert adapter.name == "practo_profile"
+    assert _make_practo_adapter().name == "practo_profile"
 
 
-def test_practo_adapter_can_fetch_false_without_stub(practo_repo):
-    adapter = PractoSourceAdapter(MagicMock(), practo_repo)
-    assert adapter.can_fetch(_mk_lead("p1")) is False
-
-
-def test_practo_adapter_can_fetch_true_with_stub(practo_repo):
-    practo_repo.upsert_stub("p1", "https://www.practo.com/ludhiana/doctor/foo")
-    adapter = PractoSourceAdapter(MagicMock(), practo_repo)
+def test_practo_adapter_can_fetch_is_always_true(practo_repo):
+    """can_fetch is now True for every lead — the umbrella adapter can
+    always TRY discovery; whether it finds a URL is a fetch outcome,
+    not a precondition."""
+    adapter = _make_practo_adapter(repo=practo_repo)
     assert adapter.can_fetch(_mk_lead("p1")) is True
+    assert adapter.can_fetch(_mk_lead("p_no_data_anywhere")) is True
 
 
-def test_practo_adapter_is_cached_fresh_false_without_stub(practo_repo):
-    adapter = PractoSourceAdapter(MagicMock(), practo_repo)
+def test_practo_adapter_is_cached_fresh_false_without_row(practo_repo):
+    adapter = _make_practo_adapter(repo=practo_repo)
     assert adapter.is_cached_fresh("p1", max_age_days=180, now=_T_NOW) is False
 
 
 def test_practo_adapter_is_cached_fresh_false_for_pending(practo_repo):
     practo_repo.upsert_stub("p1", "https://www.practo.com/x")
-    adapter = PractoSourceAdapter(MagicMock(), practo_repo)
+    adapter = _make_practo_adapter(repo=practo_repo)
     # status='pending' = stub exists but never fetched → not fresh
     assert adapter.is_cached_fresh("p1", max_age_days=180, now=_T_NOW) is False
 
@@ -214,7 +228,6 @@ def test_practo_adapter_is_cached_fresh_false_for_pending(practo_repo):
 def test_practo_adapter_is_cached_fresh_false_for_blocked_or_error(practo_repo):
     for status in ("blocked", "error"):
         practo_repo.upsert_stub("p1", "https://www.practo.com/x")
-        # Manually upsert a fully-formed profile with that status
         prof = PractoProfile(
             place_id="p1",
             practo_url="https://www.practo.com/x",
@@ -224,7 +237,7 @@ def test_practo_adapter_is_cached_fresh_false_for_blocked_or_error(practo_repo):
             last_modified_at=_T_NOW - timedelta(days=1),
         )
         practo_repo.upsert(prof)
-        adapter = PractoSourceAdapter(MagicMock(), practo_repo)
+        adapter = _make_practo_adapter(repo=practo_repo)
         assert adapter.is_cached_fresh("p1", max_age_days=180, now=_T_NOW) is False, status
 
 
@@ -239,7 +252,7 @@ def test_practo_adapter_is_cached_fresh_true_for_recent_ok(practo_repo):
         last_modified_at=_T_NOW - timedelta(days=30),
     )
     practo_repo.upsert(prof)
-    adapter = PractoSourceAdapter(MagicMock(), practo_repo)
+    adapter = _make_practo_adapter(repo=practo_repo)
     assert adapter.is_cached_fresh("p1", max_age_days=180, now=_T_NOW) is True
 
 
@@ -254,7 +267,7 @@ def test_practo_adapter_is_cached_fresh_false_for_old_ok(practo_repo):
         last_modified_at=_T_LONG_AGO,
     )
     practo_repo.upsert(prof)
-    adapter = PractoSourceAdapter(MagicMock(), practo_repo)
+    adapter = _make_practo_adapter(repo=practo_repo)
     # 200 days old vs 180 max → stale
     assert adapter.is_cached_fresh("p1", max_age_days=180, now=_T_NOW) is False
 
@@ -272,26 +285,142 @@ def test_practo_adapter_not_found_is_terminal_fresh_forever(practo_repo):
         last_modified_at=_T_LONG_AGO,
     )
     practo_repo.upsert(prof)
-    adapter = PractoSourceAdapter(MagicMock(), practo_repo)
-    # Even at 200 days old, terminal status = fresh forever
+    adapter = _make_practo_adapter(repo=practo_repo)
     assert adapter.is_cached_fresh("p1", max_age_days=180, now=_T_NOW) is True
 
 
-def test_practo_adapter_fetch_for_lead_skips_when_no_stub(practo_repo):
-    adapter = PractoSourceAdapter(MagicMock(), practo_repo)
-    summary = adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-x", now=_T_NOW)
-    assert summary["fetch_status"] == "skipped"
-    assert "no Practo stub row" in (summary["error_message"] or "")
+def test_practo_adapter_no_url_found_is_also_terminal_fresh(practo_repo):
+    """`no_url_found` (discovery couldn't match) is similarly terminal
+    — don't keep searching every run."""
+    prof = PractoProfile(
+        place_id="p1",
+        practo_url="",
+        fetch_status="no_url_found",
+        fetched_at=_T_LONG_AGO,
+        discovered_at=_T1,
+        last_modified_at=_T_LONG_AGO,
+    )
+    practo_repo.upsert(prof)
+    adapter = _make_practo_adapter(repo=practo_repo)
+    assert adapter.is_cached_fresh("p1", max_age_days=180, now=_T_NOW) is True
 
 
-def test_practo_adapter_fetch_for_lead_returns_error_when_controller_raises(
+# ── fetch_for_lead: discover-then-enrich orchestration ────────────────
+
+
+def test_practo_adapter_fetch_runs_discovery_when_no_row_exists(practo_repo):
+    """When no row exists for the place_id, the adapter must invoke
+    URL discovery (passing a single-lead list)."""
+    discover = MagicMock()
+    enrich = MagicMock()
+    enrich.enrich_one.return_value = PractoProfile(
+        place_id="p1", practo_url="", fetch_status="ok",
+        fetched_at=_T_NOW, discovered_at=_T1, last_modified_at=_T_NOW,
+    )
+
+    # Discover doesn't actually persist (it's a Mock), but we simulate
+    # discovery's effect by populating a stub before enrich is called.
+    def _fake_discover(leads, *, min_match_score, dry_run):
+        practo_repo.upsert_stub("p1", "https://www.practo.com/found")
+    discover.discover_for_leads.side_effect = _fake_discover
+
+    adapter = PractoSourceAdapter(
+        enrich_controller=enrich, discover_controller=discover, practo_repo=practo_repo,
+    )
+    summary = adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-1", now=_T_NOW)
+
+    discover.discover_for_leads.assert_called_once()
+    enrich.enrich_one.assert_called_once_with("p1")
+    assert summary["fetch_status"] == "ok"
+
+
+def test_practo_adapter_fetch_skips_discovery_when_stub_exists(practo_repo):
+    practo_repo.upsert_stub("p1", "https://www.practo.com/known")
+    discover = MagicMock()
+    enrich = MagicMock()
+    enrich.enrich_one.return_value = PractoProfile(
+        place_id="p1", practo_url="https://www.practo.com/known",
+        fetch_status="ok",
+        fetched_at=_T_NOW, discovered_at=_T1, last_modified_at=_T_NOW,
+    )
+
+    adapter = PractoSourceAdapter(
+        enrich_controller=enrich, discover_controller=discover, practo_repo=practo_repo,
+    )
+    adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-1", now=_T_NOW)
+
+    discover.discover_for_leads.assert_not_called()
+    enrich.enrich_one.assert_called_once_with("p1")
+
+
+def test_practo_adapter_fetch_returns_no_url_found_when_discovery_finds_nothing(
     practo_repo,
 ):
-    practo_repo.upsert_stub("p1", "https://www.practo.com/x")
-    controller = MagicMock()
-    controller.enrich_one.side_effect = RuntimeError("network died")
-    adapter = PractoSourceAdapter(controller, practo_repo)
+    """If discovery completes but persists a no_url_found row (or no
+    row at all), the adapter surfaces no_url_found and skips enrich."""
+    discover = MagicMock()
+    enrich = MagicMock()
 
+    def _fake_no_match(leads, *, min_match_score, dry_run):
+        prof = PractoProfile(
+            place_id="p1", practo_url="", fetch_status="no_url_found",
+            fetched_at=_T_NOW, discovered_at=_T_NOW, last_modified_at=_T_NOW,
+        )
+        practo_repo.upsert(prof)
+    discover.discover_for_leads.side_effect = _fake_no_match
+
+    adapter = PractoSourceAdapter(
+        enrich_controller=enrich, discover_controller=discover, practo_repo=practo_repo,
+    )
+    summary = adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-x", now=_T_NOW)
+
+    discover.discover_for_leads.assert_called_once()
+    enrich.enrich_one.assert_not_called()  # no URL → no enrich
+    assert summary["fetch_status"] == "no_url_found"
+
+
+def test_practo_adapter_fetch_returns_no_url_found_when_discovery_persists_nothing(
+    practo_repo,
+):
+    """Defensive: if discovery completes but writes no row at all,
+    treat as no_url_found so we don't keep retrying every run."""
+    discover = MagicMock()  # returns nothing, persists nothing
+    enrich = MagicMock()
+
+    adapter = PractoSourceAdapter(
+        enrich_controller=enrich, discover_controller=discover, practo_repo=practo_repo,
+    )
+    summary = adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-x", now=_T_NOW)
+
+    assert summary["fetch_status"] == "no_url_found"
+    enrich.enrich_one.assert_not_called()
+
+
+def test_practo_adapter_fetch_handles_discovery_exception(practo_repo):
+    discover = MagicMock()
+    discover.discover_for_leads.side_effect = RuntimeError("akamai blocked us")
+    enrich = MagicMock()
+
+    adapter = PractoSourceAdapter(
+        enrich_controller=enrich, discover_controller=discover, practo_repo=practo_repo,
+    )
+    summary = adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-x", now=_T_NOW)
+
+    assert summary["fetch_status"] == "error"
+    assert "akamai blocked" in (summary["error_message"] or "")
+    enrich.enrich_one.assert_not_called()
+
+
+def test_practo_adapter_fetch_handles_enrich_exception(practo_repo):
+    practo_repo.upsert_stub("p1", "https://www.practo.com/known")
+    enrich = MagicMock()
+    enrich.enrich_one.side_effect = RuntimeError("network died")
+
+    adapter = PractoSourceAdapter(
+        enrich_controller=enrich,
+        discover_controller=MagicMock(),
+        practo_repo=practo_repo,
+    )
     summary = adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-1", now=_T_NOW)
 
     assert summary["fetch_status"] == "error"
@@ -299,39 +428,68 @@ def test_practo_adapter_fetch_for_lead_returns_error_when_controller_raises(
     assert summary["source"] == "practo_profile"
 
 
-def test_practo_adapter_fetch_for_lead_returns_error_when_controller_returns_none(
-    practo_repo,
-):
-    practo_repo.upsert_stub("p1", "https://www.practo.com/x")
-    controller = MagicMock()
-    controller.enrich_one.return_value = None
-    adapter = PractoSourceAdapter(controller, practo_repo)
+def test_practo_adapter_fetch_returns_error_when_enrich_returns_none(practo_repo):
+    practo_repo.upsert_stub("p1", "https://www.practo.com/known")
+    enrich = MagicMock()
+    enrich.enrich_one.return_value = None
 
+    adapter = PractoSourceAdapter(
+        enrich_controller=enrich,
+        discover_controller=MagicMock(),
+        practo_repo=practo_repo,
+    )
     summary = adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-1", now=_T_NOW)
 
     assert summary["fetch_status"] == "error"
     assert "returned None" in (summary["error_message"] or "")
 
 
-def test_practo_adapter_fetch_for_lead_returns_success_dict(practo_repo):
-    practo_repo.upsert_stub("p1", "https://www.practo.com/x")
-    controller = MagicMock()
-    controller.enrich_one.return_value = PractoProfile(
-        place_id="p1",
-        practo_url="https://www.practo.com/x",
-        fetch_status="ok",
-        fetched_at=_T_NOW,
-        discovered_at=_T1,
-        last_modified_at=_T_NOW,
+def test_practo_adapter_fetch_skips_enrich_for_terminal_existing_row(practo_repo):
+    """If a row already exists with terminal status (not_found /
+    no_url_found), don't run enrich. The orchestrator's
+    is_cached_fresh would normally short-circuit before fetch_for_lead
+    but defend against the path where it doesn't (e.g. force_refresh)."""
+    prof = PractoProfile(
+        place_id="p1", practo_url="", fetch_status="no_url_found",
+        fetched_at=_T_LONG_AGO, discovered_at=_T1, last_modified_at=_T_LONG_AGO,
     )
-    adapter = PractoSourceAdapter(controller, practo_repo)
+    practo_repo.upsert(prof)
+    enrich = MagicMock()
+    discover = MagicMock()
 
+    adapter = PractoSourceAdapter(
+        enrich_controller=enrich, discover_controller=discover, practo_repo=practo_repo,
+    )
     summary = adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-1", now=_T_NOW)
 
-    assert summary["fetch_status"] == "ok"
-    assert summary["place_id"] == "p1"
-    assert summary["source"] == "practo_profile"
-    controller.enrich_one.assert_called_once_with("p1")
+    discover.discover_for_leads.assert_not_called()
+    enrich.enrich_one.assert_not_called()
+    assert summary["fetch_status"] == "no_url_found"
+
+
+def test_practo_adapter_passes_threshold_to_discovery(practo_repo):
+    discover = MagicMock()
+    enrich = MagicMock()
+    enrich.enrich_one.return_value = PractoProfile(
+        place_id="p1", practo_url="x", fetch_status="ok",
+        fetched_at=_T_NOW, discovered_at=_T1, last_modified_at=_T_NOW,
+    )
+
+    def _fake_discover(leads, *, min_match_score, dry_run):
+        practo_repo.upsert_stub("p1", "https://www.practo.com/x")
+    discover.discover_for_leads.side_effect = _fake_discover
+
+    adapter = PractoSourceAdapter(
+        enrich_controller=enrich,
+        discover_controller=discover,
+        practo_repo=practo_repo,
+        discover_min_match_score=0.85,
+    )
+    adapter.fetch_for_lead(_mk_lead("p1"), capture_id="cap-1", now=_T_NOW)
+
+    call_kwargs = discover.discover_for_leads.call_args.kwargs
+    assert call_kwargs["min_match_score"] == 0.85
+    assert call_kwargs["dry_run"] is False
 
 
 # ── Protocol conformance ───────────────────────────────────────────────
@@ -341,6 +499,6 @@ def test_both_adapters_satisfy_source_adapter_protocol():
     """Quick structural check: both classes should pass isinstance(...,
     SourceAdapter) at runtime via @runtime_checkable."""
     rev = GoogleReviewsSourceAdapter(MagicMock(), MagicMock())
-    pra = PractoSourceAdapter(MagicMock(), MagicMock())
+    pra = _make_practo_adapter()
     assert isinstance(rev, SourceAdapter)
     assert isinstance(pra, SourceAdapter)
