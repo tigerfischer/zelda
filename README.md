@@ -56,6 +56,21 @@ python -m zelda bootstrap --city CITY
 ```
 Reverse direction: Drive → local DB. Pulls JSONL artifacts from `raw-artifacts/{slug(city)}/` on Drive, reconstructs RawLead rows from each Place Details payload, and upserts into the local SQLite. Used on a fresh machine to inherit existing discovered leads without re-paying the Places API. Idempotent: skips JSONLs already on disk, repo upserts are no-ops if data is unchanged. After bootstrap, leads are marked synced — a follow-up `sync` call is also a no-op.
 
+```
+python -m zelda fetch-reviews --city CITY [--max-places N|all] [--max-reviews-per-place N]
+```
+Single-source command: captures Google Maps reviews per place via the Playwright reviews gateway. Newest-first, with capture metadata (`is_truncated`, `total_per_gbp`, capture order, status) persisted alongside the reviews so downstream stat functions can't lie about bounds. Useful for one-off review-only refreshes without invoking other enrichment sources.
+
+```
+python -m zelda enrich --city CITY [--max-leads N|all] [--max-age-days N] [--force-refresh] [--sources google_reviews,practo_profile]
+```
+**The unified enrichment pipeline.** Iterates over (lead × source) pairs and only fetches what's missing or stale. Each source ([`enrichment_sources.py`](src/zelda/controllers/enrichment_sources.py)) implements three predicates: `can_fetch` (do we have what we need to fetch this lead?), `is_cached_fresh` (recent successful capture exists?), `fetch_for_lead`. The orchestrator skips a fetch on cache-hit AND on no-prerequisite-data, and disables a single source for the rest of the run if it gets blocked — without affecting other sources.
+
+- `--max-age-days` is the cache window. Default **180 (6 months)**. Source-level: a recent successful Practo capture skips Practo for that lead; same for reviews independently.
+- `--force-refresh` bypasses the cache.
+- `--sources` filters to a subset; default = all registered.
+- Adding a new enrichment source = write a `SourceAdapter` (~50 lines) and register it in the CLI handler. The orchestrator's loop logic doesn't change.
+
 ### Example flow
 
 ```
@@ -64,9 +79,14 @@ python -m zelda discover --city Ludhiana --max-results 1
 
 python -m zelda sync --city Ludhiana
 # sync Ludhiana: unsynced=1 sheet_inserted=1 ... artifacts_uploaded=1 ...
+
+python -m zelda enrich --city Ludhiana --max-leads 1
+# enrich Ludhiana: leads=59 after_max_leads=1 ...
+#   [google_reviews] attempted=1 successful=1 ...
+#   [practo_profile] no_prereq=1 attempted=0 ...
 ```
 
-Once you've validated end-to-end with `--max-results 1`, scale up with `--max-results 50` or `--max-results all`.
+Once you've validated end-to-end with low caps, scale up with `--max-results all` / `--max-leads all`.
 
 ## Layout
 
