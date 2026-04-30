@@ -21,6 +21,9 @@ dependencies:
       # LLM matching
       - anthropic==0.50.0
       - jinja2==3.1.6
+      # Website audit
+      - requests==2.32.3
+      - beautifulsoup4==4.12.3
       # Headless browser (Google Maps reviews capture)
       - playwright==1.48.0
       # Tests

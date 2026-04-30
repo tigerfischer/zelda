@@ -1,0 +1,14 @@
+You are analysing Google reviews for a dental clinic to identify operational problems.
+
+Clinic: {{ clinic_name }} ({{ city }})
+Total reviews analysed: {{ reviews | length }}
+
+Reviews (rating and text):
+{% for r in reviews %}
+[{{ r.rating }}★] {{ r.text | truncate(300) }}
+{% endfor %}
+
+Identify which of the following problems appear in the reviews. Only flag a theme
+if at least one review clearly mentions it — do not infer.
+
+Use the `review_themes` tool to record your findings.

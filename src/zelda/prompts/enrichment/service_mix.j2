@@ -1,0 +1,12 @@
+You are classifying a dental clinic's service offering based on text from their website.
+
+Clinic: {{ clinic_name }}
+Website text:
+---
+{{ page_text | truncate(6000) }}
+---
+
+Based ONLY on what the text explicitly mentions, identify which service categories
+this clinic offers and any specialised equipment they claim to have.
+
+Use the `service_classification` tool to record your findings.
