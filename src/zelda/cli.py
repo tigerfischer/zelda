@@ -5,6 +5,7 @@ Subcommands:
     sync           — push DB → Drive for a city
     bootstrap      — pull Drive → fresh local DB (cross-machine setup)
     fetch-reviews  — capture per-place reviews from Google Maps
+    enrich         — run all enrichment sources for a city, source-level cached
 
 All subcommands read configuration from `.env` via Settings, wire up
 the appropriate gateway + repo + controller, and print a one-line
@@ -17,6 +18,15 @@ import sys
 from zelda.config import Settings
 from zelda.controllers.bootstrap import BootstrapController, BootstrapResult
 from zelda.controllers.discover import DiscoverController, DiscoverResult
+from zelda.controllers.enrich_practo import EnrichPractoController
+from zelda.controllers.enrichment_orchestrator import (
+    EnrichmentOrchestrator,
+    OrchestratorResult,
+)
+from zelda.controllers.enrichment_sources import (
+    GoogleReviewsSourceAdapter,
+    PractoSourceAdapter,
+)
 from zelda.controllers.fetch_reviews import (
     FetchReviewsController,
     FetchReviewsResult,
@@ -25,6 +35,8 @@ from zelda.controllers.sync import DriveSyncController, SyncResult
 from zelda.gateways.google_drive import GoogleDriveGateway
 from zelda.gateways.google_places import GooglePlacesGateway
 from zelda.gateways.google_reviews import GoogleReviewsGateway
+from zelda.gateways.practo_playwright import PractoPlaywrightGateway
+from zelda.repositories.practo_profile_repo import PractoProfileRepository
 from zelda.repositories.raw_lead_repo import RawLeadRepository
 from zelda.repositories.review_repo import ReviewRepository
 
@@ -149,6 +161,61 @@ def build_parser() -> argparse.ArgumentParser:
         "--headful",
         action="store_true",
         help="Show the browser window (off by default; useful for debug).",
+    )
+
+    p_enr = sub.add_parser(
+        "enrich",
+        help=(
+            "run all enrichment sources for a city, with source-level "
+            "caching (skip re-fetch when fresh data exists)"
+        ),
+    )
+    p_enr.add_argument("--city", required=True, help="City name, e.g. Ludhiana")
+    p_enr.add_argument(
+        "--max-leads",
+        type=_max_results_type,
+        default=1,
+        help=(
+            "Cap on leads this run touches (cost knob). 0 = no fetches; "
+            "'all' = unlimited. Default: 1."
+        ),
+    )
+    p_enr.add_argument(
+        "--max-age-days",
+        type=_non_negative_float,
+        default=180.0,
+        help=(
+            "Source-level cache window — skip a (lead × source) pair if "
+            "we already have a successful capture younger than this many "
+            "days. Default: 180 (6 months)."
+        ),
+    )
+    p_enr.add_argument(
+        "--force-refresh",
+        action="store_true",
+        help="Bypass the cache window — re-fetch every (lead × source).",
+    )
+    p_enr.add_argument(
+        "--max-reviews-per-place",
+        type=_positive_int,
+        default=1000,
+        help=(
+            "Per-place cap for the Google reviews source (passed through "
+            "to the underlying gateway). Default: 1000."
+        ),
+    )
+    p_enr.add_argument(
+        "--sources",
+        default=None,
+        help=(
+            "Comma-separated list of sources to run. Default: all "
+            "registered. Available: google_reviews, practo_profile."
+        ),
+    )
+    p_enr.add_argument(
+        "--headful",
+        action="store_true",
+        help="Show browser windows (off by default; useful for debug).",
     )
 
     return parser
@@ -294,6 +361,107 @@ def cmd_fetch_reviews(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+def cmd_enrich(args: argparse.Namespace, settings: Settings) -> int:
+    """Run all enrichment sources for a city via the orchestrator.
+
+    Wires up:
+      - GoogleReviewsGateway + ReviewRepository + FetchReviewsController
+        + GoogleReviewsSourceAdapter
+      - PractoPlaywrightGateway + PractoProfileRepository
+        + EnrichPractoController + PractoSourceAdapter
+      - EnrichmentOrchestrator with both adapters
+
+    The orchestrator's source-level cache (`max_age_days`, default 180)
+    means re-running with no new leads is cheap.
+    """
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
+    reviews_artifacts_dir = settings.data_dir / "reviews-artifacts"
+
+    only_sources: list[str] | None = None
+    if args.sources:
+        only_sources = [s.strip() for s in args.sources.split(",") if s.strip()]
+
+    lead_repo = RawLeadRepository(settings.db_path)
+    review_repo = ReviewRepository(settings.db_path)
+    practo_repo = PractoProfileRepository(settings.db_path)
+
+    headless = not args.headful
+    reviews_gw = GoogleReviewsGateway.launch(headless=headless)
+    practo_gw = PractoPlaywrightGateway.launch()
+
+    try:
+        reviews_ctrl = FetchReviewsController(
+            gateway=reviews_gw,
+            review_repo=review_repo,
+            lead_repo=lead_repo,
+            artifacts_dir=reviews_artifacts_dir,
+        )
+        practo_ctrl = EnrichPractoController(
+            gateway=practo_gw,
+            repo=practo_repo,
+        )
+        reviews_adapter = GoogleReviewsSourceAdapter(
+            controller=reviews_ctrl,
+            review_repo=review_repo,
+            max_reviews_per_place=args.max_reviews_per_place,
+        )
+        practo_adapter = PractoSourceAdapter(
+            controller=practo_ctrl,
+            practo_repo=practo_repo,
+        )
+        orchestrator = EnrichmentOrchestrator(
+            sources=[reviews_adapter, practo_adapter],
+            lead_repo=lead_repo,
+        )
+        result: OrchestratorResult = orchestrator.enrich_city(
+            args.city,
+            only_sources=only_sources,
+            max_leads=args.max_leads,
+            max_age_days=args.max_age_days,
+            force_refresh=args.force_refresh,
+        )
+    finally:
+        try:
+            reviews_gw.close()
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            practo_gw.close()
+        except Exception:  # noqa: BLE001
+            pass
+        practo_repo.close()
+        review_repo.close()
+        lead_repo.close()
+
+    # Print top-level summary + per-source breakdown
+    print(
+        f"enrich {args.city}: "
+        f"leads={result.n_leads_in_city} "
+        f"after_max_leads={result.n_after_max_leads} "
+        f"blocked_sources={result.blocked_sources} "
+        f"errors={len(result.errors)} "
+        f"run_id={result.run_id}"
+    )
+    for name, stats in result.by_source.items():
+        print(
+            f"  [{name}] "
+            f"cache_hits={stats.n_cache_hits} "
+            f"no_prereq={stats.n_no_prereq} "
+            f"skipped_blocked={stats.n_skipped_blocked_earlier} "
+            f"attempted={stats.n_attempted} "
+            f"successful={stats.n_successful} "
+            f"errored={stats.n_errored} "
+            f"blocked={stats.n_blocked} "
+            f"other_terminal={stats.n_other_terminal}"
+        )
+
+    if result.errors:
+        return 1
+    if result.blocked_sources:
+        return 2
+    return 0
+
+
 # ── entry point ─────────────────────────────────────────────────────
 
 
@@ -302,6 +470,7 @@ _HANDLERS = {
     "sync": cmd_sync,
     "bootstrap": cmd_bootstrap,
     "fetch-reviews": cmd_fetch_reviews,
+    "enrich": cmd_enrich,
 }
 
 

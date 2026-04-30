@@ -234,6 +234,119 @@ def test_fetch_reviews_headful_flag():
     assert args.headful is True
 
 
+# ── enrich subcommand ────────────────────────────────────────────────
+
+
+def test_enrich_basic_args():
+    parser = build_parser()
+    args = parser.parse_args(["enrich", "--city", "Ludhiana"])
+    assert args.command == "enrich"
+    assert args.city == "Ludhiana"
+    # Defaults
+    assert args.max_leads == 1
+    assert args.max_age_days == 180.0
+    assert args.force_refresh is False
+    assert args.max_reviews_per_place == 1000
+    assert args.sources is None
+    assert args.headful is False
+
+
+def test_enrich_requires_city():
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["enrich"])
+
+
+def test_enrich_max_leads_int():
+    parser = build_parser()
+    args = parser.parse_args(["enrich", "--city", "Ludhiana", "--max-leads", "10"])
+    assert args.max_leads == 10
+
+
+def test_enrich_max_leads_all_means_unlimited():
+    parser = build_parser()
+    args = parser.parse_args(["enrich", "--city", "Ludhiana", "--max-leads", "all"])
+    assert args.max_leads is None
+
+
+def test_enrich_max_leads_zero_for_dry_run():
+    parser = build_parser()
+    args = parser.parse_args(["enrich", "--city", "Ludhiana", "--max-leads", "0"])
+    assert args.max_leads == 0
+
+
+def test_enrich_max_leads_rejects_negative():
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["enrich", "--city", "Ludhiana", "--max-leads", "-1"])
+
+
+def test_enrich_max_age_days_float():
+    parser = build_parser()
+    args = parser.parse_args(["enrich", "--city", "Ludhiana", "--max-age-days", "30.5"])
+    assert args.max_age_days == 30.5
+
+
+def test_enrich_max_age_days_zero_allowed():
+    """0 is valid — same as --force-refresh in effect."""
+    parser = build_parser()
+    args = parser.parse_args(["enrich", "--city", "Ludhiana", "--max-age-days", "0"])
+    assert args.max_age_days == 0.0
+
+
+def test_enrich_max_age_days_rejects_negative():
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["enrich", "--city", "Ludhiana", "--max-age-days", "-1"])
+
+
+def test_enrich_force_refresh_flag():
+    parser = build_parser()
+    args = parser.parse_args(["enrich", "--city", "Ludhiana", "--force-refresh"])
+    assert args.force_refresh is True
+
+
+def test_enrich_max_reviews_per_place_int():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["enrich", "--city", "Ludhiana", "--max-reviews-per-place", "500"]
+    )
+    assert args.max_reviews_per_place == 500
+
+
+def test_enrich_max_reviews_per_place_rejects_zero():
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            ["enrich", "--city", "Ludhiana", "--max-reviews-per-place", "0"]
+        )
+
+
+def test_enrich_sources_subset():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["enrich", "--city", "Ludhiana", "--sources", "google_reviews"]
+    )
+    assert args.sources == "google_reviews"
+
+
+def test_enrich_sources_multiple():
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "enrich", "--city", "Ludhiana",
+            "--sources", "google_reviews,practo_profile",
+        ]
+    )
+    assert args.sources == "google_reviews,practo_profile"
+
+
+def test_enrich_headful_flag():
+    parser = build_parser()
+    args = parser.parse_args(["enrich", "--city", "Ludhiana", "--headful"])
+    assert args.headful is True
+
+
 # ── argument-type helpers ─────────────────────────────────────────────
 
 
