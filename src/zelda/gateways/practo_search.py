@@ -1,43 +1,49 @@
 """Practo URL-discovery gateway, Playwright-backed.
 
 Companion to `practo_playwright.PractoPlaywrightGateway`: that one
-fetches *one* known profile URL; this one *searches* Practo by
-clinic/doctor name and returns candidate matches with enough
-metadata for the discovery controller to score them.
+fetches *one* known profile URL; this one fetches Practo's city-wide
+dentist listing and returns the candidates for the discovery
+controller to fuzzy-match against.
 
-Search URL pattern
-------------------
-We use Practo's structured-search endpoint, which accepts a
-JSON-encoded query and a city parameter:
+Why "list, then match" (not "query Practo with the lead name")
+--------------------------------------------------------------
+We initially built this against Practo's structured-search endpoint,
+`/search/doctors?city=X&q=[<json>]`, on the assumption that the `q`
+parameter filtered candidates by clinic / doctor name. Live testing
+(2026-04, Ludhiana) showed it does not: arbitrary clinic queries
+("Saggar Dental", "Sai Dental Clinic") return the same generic
+city-wide doctor list (urologists, gynecologists, audiologists)
+regardless of the query. Practo's `q` only filters when it matches
+their internal autocomplete dictionary (specialty terms like
+"Dentist", or known doctor names) — clinic names usually don't.
 
-    https://www.practo.com/search/doctors
-        ?city=<City>
-        &q=[{"word":"<query>","autocompleted":false,"category":"doctor"}]
+Switching to `/<city-slug>/dentist` — Practo's per-city dentist
+listing — returns ACTUAL dentists, ranked by Practo's own relevance.
+The discovery controller's fuzzy match handles the per-lead filtering
+client-side.
 
-This was determined empirically (2026-04). Two alternatives we
-ruled out:
+Two alternative URL shapes we rejected:
+- `/<city-slug>/dentists?q=...` (the brief's guess; plural) → 404.
+- `/search/doctors?city=X&q=...` → returns generic, see above.
 
-- `/<city-slug>/dentists?q=...` — 404 (the brief's guess; plural
-  form doesn't exist).
-- `/<city-slug>/dentist?q=...` — returns 200 but the `?q=` is
-  ignored; it serves a generic city listing of dentists.
+Pagination
+----------
+The listing returns 10 entities per page. `search_dentists(...,
+max_pages=N)` walks pages 1..N, deduping by entity ID; the
+discovery controller's `max_candidates` then caps the union. Default
+is `max_pages=3` (≤30 candidates) which covers small / mid cities
+in full and the relevant top of the long tail in metros.
 
-Result extraction
------------------
-The SERP hydrates a Redux store on `window.__REDUX_STATE__` whose
-`listingV2.doctors.entities` dict holds full per-doctor records
-keyed by ID, and `listingV2.doctors.items` carries the relevance-
-ranked ordering. We walk `items` in order and pick up to
-`max_results` entities.
-
-The brief specified that `search_dentists()` would return a bare
-`list[PractoSearchResult]`. We diverge: we return a `PractoSearchOutcome`
-wrapper carrying both the candidates AND a status enum, because the
-discovery controller needs to distinguish "search worked, no
-matches" from "search blocked by Akamai" — and a bare list collapses
-the two. The orchestrator integrating these gateways already
-expects `blocked / error / ok` semantics; matching that here keeps
-the surface consistent.
+Signature deviation from the brief
+----------------------------------
+- We return a `PractoSearchOutcome` wrapper (status + candidates)
+  rather than a bare `list[PractoSearchResult]`. The discovery
+  controller needs to distinguish "search ok, no matches" from
+  "search blocked by Akamai" — a bare list collapses the two.
+- The `query` parameter is preserved on the signature for logging
+  but unused inside (see "Why list, then match" above). The
+  signature stays compatible with the orchestrator's calling
+  convention.
 
 Anti-block detection + rate-limit posture mirror the profile gateway:
 see `_practo_browser` for the shared plumbing.
@@ -45,7 +51,6 @@ see `_practo_browser` for the shared plumbing.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Literal
@@ -70,7 +75,10 @@ from zelda.gateways._practo_browser import (
 
 
 _PRACTO_BASE = "https://www.practo.com"
-_SEARCH_PATH = "/search/doctors"
+# Per-city dentist listing — what Practo's UI calls "Dentists in <City>".
+# Path is `/<city-slug>/dentist` (singular, despite the plural in the
+# brief). We append `?page=N` for pagination.
+_LISTING_PATH_TEMPLATE = "/{city_slug}/dentist"
 
 
 # ── result types ────────────────────────────────────────────────────
@@ -168,6 +176,13 @@ class PractoSearchGateway:
         self._viewport = viewport
         self._context: BrowserContext | None = None
 
+        # Per-URL cache of successful listing fetches. The same Ludhiana
+        # `?page=1` listing serves every Ludhiana lead, so without a
+        # cache we'd re-fetch identical pages N times per city pass —
+        # wasteful AND a behavior pattern Akamai might flag. Only `ok`
+        # outcomes are cached; failures retry on next call.
+        self._listing_cache: dict[str, PractoSearchOutcome] = {}
+
     @classmethod
     def launch(cls, **kwargs: Any) -> "PractoSearchGateway":
         """Spawn a Playwright + Chromium pair tuned for Practo's Akamai
@@ -226,14 +241,20 @@ class PractoSearchGateway:
         query: str,
         city_slug: str,
         max_results: int = 10,
+        max_pages: int = 3,
         now: datetime | None = None,
     ) -> PractoSearchOutcome:
-        """Search Practo for dentists matching `query` in `city_slug`.
+        """Fetch Practo's per-city dentist listing for `city_slug`.
 
-        Returns up to `max_results` candidates ordered by Practo's
-        own relevance ranking. Scoring against the lead's name is
-        the controller's job — this gateway is intentionally
-        unopinionated about which candidate is "right".
+        Walks pages 1..`max_pages`, accumulating candidates by their
+        unique `id`, and returns up to `max_results` total. Stops
+        early on Akamai block, generic errors, or when a page yields
+        zero new candidates (end of listing).
+
+        `query` is preserved on the signature for logging — Practo's
+        listing endpoint does NOT filter by query in our testing, so
+        client-side fuzzy matching (in the discovery controller) is
+        what does the actual matching.
         """
         if not query or not query.strip():
             raise ValueError("query must be non-empty")
@@ -241,20 +262,98 @@ class PractoSearchGateway:
             raise ValueError("city_slug must be non-empty")
         if max_results < 1:
             raise ValueError("max_results must be >= 1")
+        if max_pages < 1:
+            raise ValueError("max_pages must be >= 1")
 
         searched_at = now or datetime.now(timezone.utc)
-        search_url = build_search_url(query=query, city_slug=city_slug)
+        first_page_url = build_listing_url(city_slug=city_slug, page=1)
+
+        ctx = self._ensure_context()
+        seen_ids: set[str] = set()
+        merged: list[PractoSearchResult] = []
+        last_final_url: str | None = None
+
+        for page_num in range(1, max_pages + 1):
+            url = build_listing_url(city_slug=city_slug, page=page_num)
+            outcome = self._fetch_one_listing_page(
+                url=url, query=query, city_slug=city_slug,
+                searched_at=searched_at,
+            )
+            last_final_url = outcome.final_url or last_final_url
+
+            if outcome.status != "ok":
+                # Propagate the failure verbatim; preserve any candidates
+                # already accumulated from earlier pages.
+                outcome.candidates = merged
+                outcome.search_url = first_page_url
+                outcome.final_url = last_final_url
+                return outcome
+
+            new_count = 0
+            for cand in outcome.candidates:
+                # Dedup by Practo's stable doctor_id (in raw['doctor_id']
+                # or raw['id']); fall back to URL.
+                key = (
+                    str(cand.raw.get("doctor_id") or cand.raw.get("id") or "")
+                    or cand.practo_url
+                )
+                if key in seen_ids:
+                    continue
+                seen_ids.add(key)
+                merged.append(cand)
+                new_count += 1
+                if len(merged) >= max_results:
+                    break
+
+            logger.info(
+                "practo.search.page query={q!r} city={c} page={p} "
+                "new={n} total={t}",
+                q=query, c=city_slug, p=page_num,
+                n=new_count, t=len(merged),
+            )
+
+            if len(merged) >= max_results:
+                break
+            if new_count == 0:
+                # Listing exhausted — no point fetching more pages.
+                break
+
+        return PractoSearchOutcome(
+            query=query,
+            city_slug=city_slug,
+            searched_at=searched_at,
+            status="ok",
+            candidates=merged,
+            final_url=last_final_url,
+            search_url=first_page_url,
+        )
+
+    # ── internals ───────────────────────────────────────────────────
+
+    def _fetch_one_listing_page(
+        self,
+        *,
+        url: str,
+        query: str,
+        city_slug: str,
+        searched_at: datetime,
+    ) -> PractoSearchOutcome:
+        """Fetch one page and parse it. Always returns an outcome.
+
+        Reads from `self._listing_cache` first (only `ok` outcomes are
+        cached) so multiple leads in the same city share fetches.
+        """
+        cached = self._listing_cache.get(url)
+        if cached is not None:
+            return cached
 
         ctx = self._ensure_context()
         page = ctx.new_page()
         page.set_default_timeout(self._page_load_timeout_ms)
-
         final_url: str | None = None
         try:
-            page.goto(search_url, wait_until="domcontentloaded")
+            page.goto(url, wait_until="domcontentloaded")
             final_url = page.url
-
-            # Settle so the React app hydrates __REDUX_STATE__.
             polite_sleep(*self._post_load_settle_range_s)
 
             title = page.title()
@@ -271,29 +370,25 @@ class PractoSearchGateway:
                     candidates=[],
                     error_message=f"akamai challenge page (title={title!r})",
                     final_url=final_url,
-                    search_url=search_url,
+                    search_url=url,
                 )
 
             redux = page.evaluate("window.__REDUX_STATE__ || null")
             candidates = parse_search_state(
                 redux if isinstance(redux, dict) else {},
-                max_results=max_results,
+                max_results=1_000,  # parser cap; outer loop applies max_results
             )
-
-            logger.info(
-                "practo.search.ok query={q!r} city={c} candidates={n}",
-                q=query, c=city_slug, n=len(candidates),
-            )
-
-            return PractoSearchOutcome(
+            outcome = PractoSearchOutcome(
                 query=query,
                 city_slug=city_slug,
                 searched_at=searched_at,
                 status="ok",
                 candidates=candidates,
                 final_url=final_url,
-                search_url=search_url,
+                search_url=url,
             )
+            self._listing_cache[url] = outcome
+            return outcome
 
         except PlaywrightTimeoutError as e:
             logger.error(
@@ -308,7 +403,7 @@ class PractoSearchGateway:
                 candidates=[],
                 error_message=f"playwright timeout: {e}",
                 final_url=final_url,
-                search_url=search_url,
+                search_url=url,
             )
         except Exception as e:  # noqa: BLE001
             logger.error(
@@ -324,7 +419,7 @@ class PractoSearchGateway:
                 candidates=[],
                 error_message=f"{type(e).__name__}: {e}",
                 final_url=final_url,
-                search_url=search_url,
+                search_url=url,
             )
         finally:
             try:
@@ -336,25 +431,19 @@ class PractoSearchGateway:
 # ── pure helpers (unit-testable, no Playwright) ────────────────────
 
 
-def build_search_url(*, query: str, city_slug: str) -> str:
-    """Build Practo's structured-search URL.
+def build_listing_url(*, city_slug: str, page: int = 1) -> str:
+    """Build the URL for one page of Practo's per-city dentist listing.
 
-    Practo's `/search/doctors` endpoint expects:
-    - `city`: title-case city name (e.g. "Ludhiana"). We derive this
-      from the slug by `.title()`, which works for the merged-metro
-      slugs Practo uses (e.g. "bangalore" → "Bangalore"). Hyphenated
-      slugs would title-case wrong, but Practo doesn't use them.
-    - `q`: a JSON-encoded list with one query object. The `category`
-      field is "doctor" — we've found that yields the most usable
-      candidates for clinic-name searches; "clinic" sometimes returns
-      no doctor profiles at all.
+    Pattern: `https://www.practo.com/<city-slug>/dentist[?page=N]`.
+    Page 1 omits the `page` query param to match Practo's canonical
+    URL exactly; pages 2+ append it.
     """
-    q_payload = [{"word": query, "autocompleted": False, "category": "doctor"}]
-    params = {
-        "city": city_slug.strip().title(),
-        "q": json.dumps(q_payload, separators=(",", ":")),
-    }
-    return f"{_PRACTO_BASE}{_SEARCH_PATH}?{urlencode(params)}"
+    if page < 1:
+        raise ValueError("page must be >= 1")
+    path = _LISTING_PATH_TEMPLATE.format(city_slug=city_slug.strip())
+    if page == 1:
+        return f"{_PRACTO_BASE}{path}"
+    return f"{_PRACTO_BASE}{path}?{urlencode({'page': page})}"
 
 
 def normalize_profile_url(rel_or_abs_url: str) -> str:

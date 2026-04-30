@@ -15,7 +15,7 @@ import pytest
 
 from zelda.gateways.practo_search import (
     PractoSearchResult,
-    build_search_url,
+    build_listing_url,
     normalize_profile_url,
     parse_search_state,
     _entity_to_result,
@@ -26,39 +26,34 @@ _T = datetime(2026, 4, 30, 12, 0, 0, tzinfo=timezone.utc)
 _FIXTURES = Path(__file__).parent / "fixtures"
 
 
-# ── build_search_url ────────────────────────────────────────────────
+# ── build_listing_url ──────────────────────────────────────────────
 
 
-def test_build_search_url_assembles_correct_endpoint():
-    url = build_search_url(query="Sai Dental Clinic", city_slug="ludhiana")
+def test_build_listing_url_page_one_omits_page_param():
+    """Page 1 matches Practo's canonical URL — no `?page=1` clutter."""
+    url = build_listing_url(city_slug="ludhiana")
+    assert url == "https://www.practo.com/ludhiana/dentist"
+
+
+def test_build_listing_url_page_two_appends_page_param():
+    url = build_listing_url(city_slug="ludhiana", page=2)
     parts = urlsplit(url)
     assert parts.scheme == "https"
     assert parts.netloc == "www.practo.com"
-    assert parts.path == "/search/doctors"
-
-    qs = parse_qs(parts.query)
-    assert qs["city"] == ["Ludhiana"]  # title-cased from slug
-    # `q` is a JSON-encoded list with the query payload
-    q_payload = json.loads(qs["q"][0])
-    assert q_payload == [
-        {"word": "Sai Dental Clinic", "autocompleted": False, "category": "doctor"}
-    ]
+    assert parts.path == "/ludhiana/dentist"
+    assert parse_qs(parts.query) == {"page": ["2"]}
 
 
-def test_build_search_url_handles_special_chars_in_query():
-    """rapidfuzz can score unicode names, so the URL must transmit them
-    cleanly. urlencode handles % escaping; `json.dumps` keeps unicode
-    as escaped \\u sequences which is fine for transport."""
-    url = build_search_url(query="Dr. K & A Clinic", city_slug="bangalore")
-    qs = parse_qs(urlsplit(url).query)
-    assert qs["city"] == ["Bangalore"]
-    payload = json.loads(qs["q"][0])
-    assert payload[0]["word"] == "Dr. K & A Clinic"
+def test_build_listing_url_strips_whitespace_in_slug():
+    url = build_listing_url(city_slug="  bangalore  ")
+    assert url == "https://www.practo.com/bangalore/dentist"
 
 
-def test_build_search_url_strips_whitespace_in_slug():
-    url = build_search_url(query="X", city_slug="  ludhiana  ")
-    assert "city=Ludhiana" in url
+def test_build_listing_url_rejects_zero_or_negative_page():
+    with pytest.raises(ValueError):
+        build_listing_url(city_slug="ludhiana", page=0)
+    with pytest.raises(ValueError):
+        build_listing_url(city_slug="ludhiana", page=-1)
 
 
 # ── normalize_profile_url ──────────────────────────────────────────
