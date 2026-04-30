@@ -217,6 +217,7 @@ class GoogleReviewsGateway:
         max_seconds_per_place: float = 600.0,
         user_agent: str | None = None,
         viewport: tuple[int, int] = (1366, 900),
+        owns_playwright: bool = True,
     ) -> None:
         self._playwright = playwright
         self._browser = browser
@@ -231,6 +232,11 @@ class GoogleReviewsGateway:
             "Chrome/130.0.0.0 Safari/537.36"
         )
         self._viewport = viewport
+        # `owns_playwright=False` is used when a parent process is
+        # sharing one Playwright across multiple gateways (e.g. the
+        # `enrich` CLI runs Reviews + Practo gateways in the same
+        # process; only one of them should call playwright.stop()).
+        self._owns_playwright = owns_playwright
         self._context: BrowserContext | None = None
 
     @classmethod
@@ -239,9 +245,14 @@ class GoogleReviewsGateway:
         *,
         headless: bool = True,
         use_real_chrome: bool = True,
+        playwright: Playwright | None = None,
         **kwargs: Any,
     ) -> "GoogleReviewsGateway":
         """Create a gateway with its own Playwright + Chromium instance.
+
+        Pass `playwright=<existing>` to share a Playwright runtime with
+        another gateway in the same process — Playwright Sync API only
+        permits one runtime per process.
 
         `use_real_chrome=True` (default) launches the system-installed
         Chrome via Playwright's `channel="chrome"`. Falls back to bundled
@@ -252,7 +263,12 @@ class GoogleReviewsGateway:
         `headless=True` uses Chromium's "new" headless mode (closer to
         real Chrome rendering than the legacy mode).
         """
-        pw = sync_playwright().start()
+        if playwright is None:
+            pw = sync_playwright().start()
+            owns = True
+        else:
+            pw = playwright
+            owns = False
         launch_kwargs: dict[str, Any] = {
             "headless": headless,
             "args": ["--headless=new"] if headless else [],
@@ -267,7 +283,9 @@ class GoogleReviewsGateway:
                 browser = pw.chromium.launch(**launch_kwargs)
         else:
             browser = pw.chromium.launch(**launch_kwargs)
-        return cls(playwright=pw, browser=browser, **kwargs)
+        return cls(
+            playwright=pw, browser=browser, owns_playwright=owns, **kwargs,
+        )
 
     # ── lifecycle ────────────────────────────────────────────────────
 
@@ -288,10 +306,11 @@ class GoogleReviewsGateway:
             self._browser.close()
         except Exception:  # noqa: BLE001
             pass
-        try:
-            self._playwright.stop()
-        except Exception:  # noqa: BLE001
-            pass
+        if self._owns_playwright:
+            try:
+                self._playwright.stop()
+            except Exception:  # noqa: BLE001
+                pass
 
     def reset_context(self) -> None:
         """Drop and recreate the BrowserContext to flush accumulated

@@ -386,8 +386,15 @@ def cmd_enrich(args: argparse.Namespace, settings: Settings) -> int:
     practo_repo = PractoProfileRepository(settings.db_path)
 
     headless = not args.headful
-    reviews_gw = GoogleReviewsGateway.launch(headless=headless)
-    practo_gw = PractoPlaywrightGateway.launch()
+    # One Playwright runtime shared across both gateways. Sync API only
+    # permits one runtime per process, so the gateways accept an
+    # injected pw via `playwright=...` and skip stopping it on close
+    # (their `owns_playwright` flag).
+    from playwright.sync_api import sync_playwright as _sync_playwright
+
+    pw = _sync_playwright().start()
+    reviews_gw = GoogleReviewsGateway.launch(headless=headless, playwright=pw)
+    practo_gw = PractoPlaywrightGateway.launch(playwright=pw)
 
     try:
         reviews_ctrl = FetchReviewsController(
@@ -421,12 +428,19 @@ def cmd_enrich(args: argparse.Namespace, settings: Settings) -> int:
             force_refresh=args.force_refresh,
         )
     finally:
+        # Close the gateways (their close() now respects owns_playwright,
+        # so neither will stop the shared pw runtime).
         try:
             reviews_gw.close()
         except Exception:  # noqa: BLE001
             pass
         try:
             practo_gw.close()
+        except Exception:  # noqa: BLE001
+            pass
+        # Now stop the shared Playwright once.
+        try:
+            pw.stop()
         except Exception:  # noqa: BLE001
             pass
         practo_repo.close()

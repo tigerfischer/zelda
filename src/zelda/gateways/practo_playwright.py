@@ -71,6 +71,7 @@ from playwright.sync_api import (
 )
 
 from zelda.gateways._practo_browser import (
+    CHROMIUM_LAUNCH_ARGS,
     DEFAULT_USER_AGENT,
     DEFAULT_VIEWPORT,
     is_challenge_page,
@@ -126,6 +127,7 @@ class PractoPlaywrightGateway:
         post_load_settle_range_s: tuple[float, float] = (1.5, 2.5),
         user_agent: str | None = None,
         viewport: tuple[int, int] = DEFAULT_VIEWPORT,
+        owns_playwright: bool = True,
     ) -> None:
         self._playwright = playwright
         self._browser = browser
@@ -133,14 +135,40 @@ class PractoPlaywrightGateway:
         self._post_load_settle_range_s = post_load_settle_range_s
         self._user_agent = user_agent or DEFAULT_USER_AGENT
         self._viewport = viewport
+        # `owns_playwright=False` is used when the parent process is
+        # sharing one Playwright across multiple gateways (e.g. the
+        # `enrich` CLI runs Reviews + Practo gateways in the same
+        # process; only one of them should call playwright.stop()).
+        self._owns_playwright = owns_playwright
         self._context: BrowserContext | None = None
 
     @classmethod
-    def launch(cls, **kwargs: Any) -> "PractoPlaywrightGateway":
+    def launch(
+        cls,
+        *,
+        playwright: Playwright | None = None,
+        **kwargs: Any,
+    ) -> "PractoPlaywrightGateway":
         """Spawn a Playwright + Chromium pair tuned for Practo's Akamai
-        (see `_practo_browser.launch_chromium`)."""
-        pw, browser = launch_chromium()
-        return cls(playwright=pw, browser=browser, **kwargs)
+        (see `_practo_browser.launch_chromium`).
+
+        Pass `playwright=<existing>` to share a Playwright runtime with
+        another gateway in the same process — Playwright Sync API only
+        permits one runtime per process.
+        """
+        if playwright is None:
+            pw, browser = launch_chromium()
+            owns = True
+        else:
+            pw = playwright
+            browser = playwright.chromium.launch(
+                headless=False,
+                args=list(CHROMIUM_LAUNCH_ARGS),
+            )
+            owns = False
+        return cls(
+            playwright=pw, browser=browser, owns_playwright=owns, **kwargs,
+        )
 
     # ── lifecycle ────────────────────────────────────────────────────
 
@@ -161,10 +189,11 @@ class PractoPlaywrightGateway:
             self._browser.close()
         except Exception:  # noqa: BLE001
             pass
-        try:
-            self._playwright.stop()
-        except Exception:  # noqa: BLE001
-            pass
+        if self._owns_playwright:
+            try:
+                self._playwright.stop()
+            except Exception:  # noqa: BLE001
+                pass
 
     def reset_context(self) -> None:
         """Drop and recreate the BrowserContext to flush cookies /
