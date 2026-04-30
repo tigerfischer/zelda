@@ -24,7 +24,7 @@ import sys
 from zelda.config import Settings
 from zelda.controllers.sync import DriveSyncController
 from zelda.gateways.google_drive import GoogleDriveGateway
-from zelda.repositories.raw_lead_repo import RawLeadRepository
+from zelda.repositories.google_places_lead_repo import GooglePlacesLeadRepository
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -43,7 +43,7 @@ def main(argv: list[str] | None = None) -> int:
         settings.google_oauth_token_cache,
         settings.google_drive_folder_id,
     )
-    repo = RawLeadRepository(settings.db_path)
+    repo = GooglePlacesLeadRepository(settings.db_path)
     try:
         ctrl = DriveSyncController(
             drive=drive, repo=repo, artifacts_dir=settings.raw_artifacts_dir
