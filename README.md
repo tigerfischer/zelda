@@ -1,11 +1,47 @@
 # Zelda
 
-AI growth platform for dental practices in India. V1 is a lead-generation
-pipeline that, for a given city, runs a discovery phase across multiple
-parallel sources (Google Places, Practo, Lybrate today; IDA / Sulekha /
-Justdial later), persists each source into its own SQLite table, and
-mirrors all three per-source tables to Drive for review. Cross-source
-clinic matching and source-level enrichment are upcoming phases.
+AI growth platform for dental practices in India. Zelda discovers, deduplicates,
+enriches, and scores independent dental clinics in a city — then surfaces the
+highest-need leads to Drive for sales outreach.
+
+## Running the pipeline for a new city
+
+Four commands, run in order. Each is idempotent and resumable if interrupted.
+
+```bash
+# 1. Discover — pulls clinics from Google Places, Practo, and Lybrate
+python -m zelda discover --city Bengaluru
+
+# 2. Match — cross-source dedup → unified leads table (LLM-assisted)
+python -m zelda match --city Bengaluru
+
+# 3. Enrich — compute enrichment signals and score each lead
+python -m zelda enrich-leads --city Bengaluru
+
+# 4. Sync — push everything to Drive (discovery sheets + scored enrichment sheet)
+python -m zelda sync --city Bengaluru
+```
+
+After step 4, Drive will contain:
+- `{City}/discovery/google_places` — raw GP data
+- `{City}/discovery/practo` — Practo listings
+- `{City}/discovery/lybrate` — Lybrate listings
+- `{City}/enrichment/leads` — scored leads, ordered by `need_score` DESC
+
+**Known gaps (not blocking, but worth knowing):**
+
+- **Review signals are a separate step.** Pass 1 enrichment (review velocity,
+  revenue-leak keyword scan, negative-theme LLM classification) requires reviews
+  to be fetched first via `python -m zelda fetch-reviews --city CITY`. This takes
+  longer (Playwright) and is not yet integrated into the main 4-command flow.
+  Without it, `review_velocity_*` and `has_revenue_leak_signal` will be zero/null.
+
+- **LLM enrichment requires `ANTHROPIC_API_KEY`.** Pass 2 website audit classifies
+  services and equipment via Haiku. If the key is missing, the audit still runs but
+  `service_mix` and `equipment_claims` will be empty.
+
+- **No single umbrella command yet.** A `zelda pipeline --city CITY` that chains
+  all four steps will be added; for now, run them manually in sequence.
 
 ## Setup on a fresh machine
 
@@ -43,22 +79,25 @@ Prerequisite: Miniconda or Anaconda installed.
 
 ## Architecture: pipeline-of-phases
 
-The pipeline has discrete phases. Each phase has one or more independently-runnable steps:
-
 ```
 Phase 1 — Discovery (independent per-source steps)
   ├── google_places   →  google_places_leads        (Google Places API)
   ├── practo          →  practo_listings            (httpx + JSON-LD)
   └── lybrate         →  lybrate_listings           (httpx + schema.org)
 
-Phase 2 — Cross-source matching (not yet built)
-  └── batch matcher across per-source tables → clinics + clinic_source_records
+Phase 2 — Matching (LLM-assisted cross-source dedup)
+  └── Proposer + Reviewer LLM pair → leads          (unified table, one row per clinic)
 
-Phase 3 — Enrichment (per-source caching, not yet generalized to clinics)
-  ├── google_reviews  →  reviews + review_captures  (Playwright)
-  └── practo_profile  →  practo_profiles            (Playwright + Akamai bypass)
+Phase 3 — Enrichment (signal passes, each idempotent)
+  ├── Pass 0  — existing DB data (free, instant)
+  ├── Pass 1  — review history signals (ReviewRepo + Haiku LLM)  ← separate fetch-reviews step
+  ├── Pass 2  — website audit (HTTP + Haiku LLM)
+  ├── Pass 3  — Practo signals (practo_listings + practo_profiles)
+  └── Pass 5  — lead scoring → need_score, score_tier, pitch_angle
 
-Phase 4 — Sync (all three sources → Drive, today)
+Phase 4 — Sync (all tables → Drive)
+  ├── discovery/google_places, discovery/practo, discovery/lybrate
+  └── enrichment/leads                              (scored, ordered by need_score DESC)
 ```
 
 Adding a new lead source = build its `Gateway + Controller + Step` triple
@@ -68,8 +107,9 @@ source step do not abort sibling steps.
 
 Each source persists into its **own** per-source table, with the source's
 natural key as the primary key (Google `place_id`, Practo / Lybrate
-profile URL). Cross-source linking is a separate phase — discovery never
-discards a lead just because another source didn't surface it.
+profile URL). Cross-source linking is handled by the matching phase —
+discovery never discards a lead just because another source didn't
+surface it.
 
 ## Commands
 
@@ -217,13 +257,15 @@ Inside the configured `GOOGLE_DRIVE_FOLDER_ID`:
 ```
 Zelva/                                            ← root
 └── Ludhiana/                                     (one per city)
-    └── discovery/
-        ├── google_places                         (Sheet — 27 cols, lossless)
-        ├── practo                                (Sheet — 10 cols)
-        ├── lybrate                               (Sheet — 15 cols)
-        └── raw-artifacts/                        (Google Places JSONL dumps)
-            ├── 20260429-125652-ad4e.jsonl
-            └── …
+    ├── discovery/
+    │   ├── google_places                         (Sheet — 27 cols, lossless)
+    │   ├── practo                                (Sheet — 10 cols)
+    │   ├── lybrate                               (Sheet — 15 cols)
+    │   └── raw-artifacts/                        (Google Places JSONL dumps)
+    │       ├── 20260429-125652-ad4e.jsonl
+    │       └── …
+    └── enrichment/
+        └── leads                                 (Sheet — 44 cols, ordered by need_score DESC)
 ```
 
 All JSON-typed columns (`reviews`, `types`, `address_components`, `raw_json`,

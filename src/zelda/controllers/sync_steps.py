@@ -25,9 +25,11 @@ from loguru import logger
 
 from zelda.controllers.sync_pipeline import SyncStepResult
 from zelda.models.google_places_lead import GooglePlacesLead
+from zelda.models.lead_enrichment import LeadEnrichment
 from zelda.models.lybrate_listing import LybrateListing
 from zelda.models.practo_listing import PractoListing
 from zelda.repositories.google_places_lead_repo import GooglePlacesLeadRepository
+from zelda.repositories.lead_enrichment_repo import LeadEnrichmentRepository
 from zelda.repositories.lybrate_listing_repo import LybrateListingRepository
 from zelda.repositories.practo_listing_repo import PractoListingRepository
 from zelda.util import slugify
@@ -36,8 +38,10 @@ from zelda.util import slugify
 # Drive folder hierarchy:
 #   {root}/{City}/discovery/{source}                     ← Sheet
 #   {root}/{City}/discovery/raw-artifacts/{*.jsonl}      ← Google Places only
+#   {root}/{City}/enrichment/leads                       ← Enrichment sheet
 DISCOVERY_FOLDER_NAME = "discovery"
 ARTIFACTS_FOLDER_NAME = "raw-artifacts"
+ENRICHMENT_FOLDER_NAME = "enrichment"
 
 
 class _DriveGateway(Protocol):
@@ -472,9 +476,163 @@ def _lybrate_listing_to_dict(
     }
 
 
+# ── EnrichmentSyncStep ──────────────────────────────────────────────
+
+
+ENRICHMENT_HEADER: list[str] = [
+    # Identity
+    "lead_id", "name", "city",
+    # Scoring — most important for triage
+    "need_score", "score_tier", "pitch_angle",
+    # Contact — for outreach
+    "owner_name", "owner_qualifications", "direct_phone",
+    # Reputation
+    "google_review_count", "google_rating",
+    "review_velocity_30d", "review_velocity_90d",
+    "owner_response_rate", "owner_avg_response_days",
+    "has_revenue_leak_signal", "negative_theme_flags",
+    # Acquisition / online presence
+    "has_website", "website_loads", "website_is_mobile_friendly",
+    "website_has_schema_markup", "website_has_blog", "website_agency_credit",
+    "on_practo", "on_lybrate", "source_count",
+    "nap_consistent", "is_chain", "is_hospital_embedded", "is_not_operational",
+    # Conversion
+    "has_whatsapp_link", "has_online_booking", "has_chat_widget",
+    "practo_booking_enabled",
+    # Practice details (Practo / website)
+    "practo_review_count", "practo_rating", "practo_consultation_fee_inr",
+    "years_in_operation", "dentist_count", "service_mix", "equipment_claims",
+    # GBP completeness
+    "gbp_has_hours", "gbp_photos_count", "gbp_has_description",
+    # Metadata
+    "passes_completed", "updated_at",
+]
+
+
+class EnrichmentSyncStep:
+    """Sync `lead_enrichments` to Drive at `{root}/{City}/enrichment/leads`.
+
+    Always does a full sync (no delta tracking). The enrichment table
+    is small (~hundreds of leads) and changes frequently as passes run.
+    Rows are ordered by need_score DESC so the hottest leads appear at
+    the top of the sheet.
+
+    Fully self-contained — reads only from `enrichment_repo`. The clinic
+    name is stored in `LeadEnrichment.clinic_name` (set by Pass 0) so no
+    cross-table join is needed.
+    """
+
+    name = "enrichment"
+
+    def __init__(
+        self,
+        drive: _DriveGateway,
+        enrichment_repo: LeadEnrichmentRepository,
+        *,
+        clock: Callable[[], datetime] | None = None,
+    ) -> None:
+        self._drive = drive
+        self._enrichment_repo = enrichment_repo
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
+
+    def run_for_city(self, city: str, *, run_id: str) -> SyncStepResult:
+        started_at = self._clock()
+        result = SyncStepResult(step_name=self.name, city=city, started_at=started_at)
+
+        enrichments = self._enrichment_repo.get_for_city(city)
+        result.pulled = len(enrichments)
+
+        if not enrichments:
+            result.finished_at = self._clock()
+            return result
+
+        try:
+            city_folder = self._drive.find_or_create_subfolder(city)
+            enrichment_folder = self._drive.find_or_create_subfolder(
+                ENRICHMENT_FOLDER_NAME, parent_folder_id=city_folder,
+            )
+            sheet_id = self._drive.find_or_create_spreadsheet(
+                "leads", parent_folder_id=enrichment_folder,
+            )
+            rows = [_enrichment_to_dict(e) for e in enrichments]
+            stats = self._drive.upsert_sheet_rows_by_key(
+                sheet_id,
+                header=ENRICHMENT_HEADER,
+                rows=rows,
+                key_column="lead_id",
+            )
+            result.inserted = stats["inserted"]
+            result.updated = stats["updated"]
+            result.extras["sheet_id"] = sheet_id
+        except Exception as e:  # noqa: BLE001
+            msg = f"sheet sync failed: {type(e).__name__}: {e}"
+            logger.error(
+                "enrichment_sync.sheet_error run_id={r} city={c} err={e}",
+                r=run_id, c=city, e=msg,
+            )
+            result.errors.append(msg)
+
+        result.finished_at = self._clock()
+        return result
+
+
+def _enrichment_to_dict(e: LeadEnrichment) -> dict[str, Any]:
+    return {
+        "lead_id": e.lead_id,
+        "name": e.clinic_name,
+        "city": e.city,
+        "need_score": e.need_score,
+        "score_tier": e.score_tier,
+        "pitch_angle": e.pitch_angle,
+        "owner_name": e.owner_name,
+        "owner_qualifications": e.owner_qualifications,
+        "direct_phone": e.direct_phone,
+        "google_review_count": e.google_review_count,
+        "google_rating": e.google_rating,
+        "review_velocity_30d": e.review_velocity_30d,
+        "review_velocity_90d": e.review_velocity_90d,
+        "owner_response_rate": e.owner_response_rate,
+        "owner_avg_response_days": e.owner_avg_response_days,
+        "has_revenue_leak_signal": e.has_revenue_leak_signal,
+        "negative_theme_flags": e.negative_theme_flags,
+        "has_website": e.has_website,
+        "website_loads": e.website_loads,
+        "website_is_mobile_friendly": e.website_is_mobile_friendly,
+        "website_has_schema_markup": e.website_has_schema_markup,
+        "website_has_blog": e.website_has_blog,
+        "website_agency_credit": e.website_agency_credit,
+        "on_practo": e.on_practo,
+        "on_lybrate": e.on_lybrate,
+        "source_count": e.source_count,
+        "nap_consistent": e.nap_consistent,
+        "is_chain": e.is_chain,
+        "is_hospital_embedded": e.is_hospital_embedded,
+        "is_not_operational": e.is_not_operational,
+        "has_whatsapp_link": e.has_whatsapp_link,
+        "has_online_booking": e.has_online_booking,
+        "has_chat_widget": e.has_chat_widget,
+        "practo_booking_enabled": e.practo_booking_enabled,
+        "practo_review_count": e.practo_review_count,
+        "practo_rating": e.practo_rating,
+        "practo_consultation_fee_inr": e.practo_consultation_fee_inr,
+        "years_in_operation": e.years_in_operation,
+        "dentist_count": e.dentist_count,
+        "service_mix": e.service_mix,
+        "equipment_claims": e.equipment_claims,
+        "gbp_has_hours": e.gbp_has_hours,
+        "gbp_photos_count": e.gbp_photos_count,
+        "gbp_has_description": e.gbp_has_description,
+        "passes_completed": e.passes_completed,
+        "updated_at": e.updated_at,
+    }
+
+
 __all__ = [
     "DISCOVERY_FOLDER_NAME",
     "ARTIFACTS_FOLDER_NAME",
+    "ENRICHMENT_FOLDER_NAME",
+    "ENRICHMENT_HEADER",
+    "EnrichmentSyncStep",
     "GOOGLE_PLACES_HEADER",
     "GooglePlacesSyncStep",
     "LYBRATE_HEADER",

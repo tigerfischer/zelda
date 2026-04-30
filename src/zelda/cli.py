@@ -4,6 +4,7 @@ Subcommands:
     discover              — discover dentists across all configured sources
     sync                  — push DB → Drive for a city
     match                 — cross-source matching → unified leads list
+    enrich-leads          — compute enrichment signals + lead scores for a city
     bootstrap             — pull Drive → fresh local DB (cross-machine setup)
     fetch-reviews         — capture per-place reviews from Google Maps
     enrich                — run all enrichment sources for a city (cached)
@@ -52,6 +53,7 @@ from zelda.controllers.lybrate_directory import LybrateDirectoryController
 from zelda.controllers.practo_directory import PractoDirectoryController
 from zelda.controllers.sync_pipeline import SyncPipeline, SyncPipelineResult
 from zelda.controllers.sync_steps import (
+    EnrichmentSyncStep,
     GooglePlacesSyncStep,
     LybrateSyncStep,
     PractoSyncStep,
@@ -62,8 +64,10 @@ from zelda.gateways.google_reviews import GoogleReviewsGateway
 from zelda.gateways.lybrate_directory import LybrateDirectoryGateway
 from zelda.gateways.practo_directory import PractoDirectoryGateway
 from zelda.gateways.practo_playwright import PractoPlaywrightGateway
+from zelda.controllers.enrichment.pipeline import EnrichLeadsPipeline, EnrichLeadsResult
 from zelda.controllers.matching.pipeline import MatchingPipeline, MatchingResult
 from zelda.repositories.google_places_lead_repo import GooglePlacesLeadRepository
+from zelda.repositories.lead_enrichment_repo import LeadEnrichmentRepository
 from zelda.repositories.lead_repo import LeadRepository
 from zelda.repositories.match_pair_repo import MatchPairRepository
 from zelda.repositories.lybrate_listing_repo import LybrateListingRepository
@@ -206,6 +210,23 @@ def build_parser() -> argparse.ArgumentParser:
         type=_non_negative_float,
         default=0.75,
         help="Proposer minimum confidence to proceed to Reviewer. Default: 0.75.",
+    )
+
+    p_enrich_leads = sub.add_parser(
+        "enrich-leads",
+        help="compute enrichment signals + lead scores for a city",
+    )
+    p_enrich_leads.add_argument("--city", required=True, help="City name, e.g. Ludhiana")
+    p_enrich_leads.add_argument(
+        "--passes",
+        default="0,1,2,3,5",
+        help="Comma-separated pass numbers to run (default: 0,1,2,3,5). "
+             "Pass 4 (photo vision) not yet implemented.",
+    )
+    p_enrich_leads.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-run passes even if already completed for a lead.",
     )
 
     p_boot = sub.add_parser(
@@ -433,6 +454,7 @@ def cmd_sync(args: argparse.Namespace, settings: Settings) -> int:
     gp_repo = GooglePlacesLeadRepository(settings.db_path)
     practo_repo = PractoListingRepository(settings.db_path)
     lybrate_repo = LybrateListingRepository(settings.db_path)
+    enrichment_repo_sync = LeadEnrichmentRepository(settings.db_path)
 
     try:
         pipeline = SyncPipeline(steps=[
@@ -441,6 +463,7 @@ def cmd_sync(args: argparse.Namespace, settings: Settings) -> int:
             ),
             PractoSyncStep(drive=drive, repo=practo_repo),
             LybrateSyncStep(drive=drive, repo=lybrate_repo),
+            EnrichmentSyncStep(drive=drive, enrichment_repo=enrichment_repo_sync),
         ])
 
         def _run_once() -> int:
@@ -462,6 +485,7 @@ def cmd_sync(args: argparse.Namespace, settings: Settings) -> int:
         gp_repo.close()
         practo_repo.close()
         lybrate_repo.close()
+        enrichment_repo_sync.close()
 
     return 0  # unreachable in watch mode, satisfies type checkers
 
@@ -733,6 +757,91 @@ def cmd_enrich(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+def cmd_enrich_leads(args: argparse.Namespace, settings: Settings) -> int:
+    """Run lead enrichment passes for --city.
+
+    Reads from the `leads` table (produced by `match`), computes
+    enrichment signals across Passes 0–3 and 5, and writes results to
+    the `lead_enrichments` table.
+
+    Passes:
+      0 — existing DB data (free, instant)
+      1 — full review history signals (ReviewRepository + LLM Haiku)
+      2 — website audit (HTTP + LLM Haiku)
+      3 — Practo signals (practo_listings + practo_profiles)
+      5 — lead scoring (pure computation)
+
+    Pass 1 and 2 make LLM calls — requires ANTHROPIC_API_KEY in .env.
+    """
+    import anthropic as _anthropic
+
+    passes_raw = [p.strip() for p in args.passes.split(",") if p.strip()]
+    try:
+        passes = {int(p) for p in passes_raw}
+    except ValueError:
+        print(
+            f"ERROR: --passes must be comma-separated integers, got {args.passes!r}",
+            file=sys.stderr,
+        )
+        return 1
+
+    # LLM client is optional — Pass 0, 3, 5 don't need it.
+    client = None
+    if settings.anthropic_api_key and (passes & {1, 2}):
+        client = _anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    elif passes & {1, 2}:
+        print(
+            "WARNING: ANTHROPIC_API_KEY not set — Passes 1 and 2 will skip LLM calls.",
+            file=sys.stderr,
+        )
+
+    from zelda.gateways.website_audit import WebsiteAuditGateway
+    from zelda.repositories.review_repo import ReviewRepository
+
+    lead_repo = LeadRepository(settings.db_path)
+    enrichment_repo = LeadEnrichmentRepository(settings.db_path)
+    gp_repo = GooglePlacesLeadRepository(settings.db_path)
+    practo_repo = PractoListingRepository(settings.db_path)
+    lybrate_repo = LybrateListingRepository(settings.db_path)
+    review_repo = ReviewRepository(settings.db_path)
+    website_gw = WebsiteAuditGateway()
+
+    try:
+        pipeline = EnrichLeadsPipeline(
+            db_path=settings.db_path,
+            lead_repo=lead_repo,
+            enrichment_repo=enrichment_repo,
+            gp_repo=gp_repo,
+            practo_repo=practo_repo,
+            lybrate_repo=lybrate_repo,
+            review_repo=review_repo,
+            anthropic_client=client,
+            website_gateway=website_gw,
+        )
+        result: EnrichLeadsResult = pipeline.run(
+            args.city,
+            passes=passes,
+            force=args.force,
+        )
+    finally:
+        lead_repo.close()
+        enrichment_repo.close()
+        gp_repo.close()
+        practo_repo.close()
+        lybrate_repo.close()
+        review_repo.close()
+        website_gw.close()
+
+    print(result.summary())
+    for pass_n, count in sorted(result.passes_run.items()):
+        print(f"  pass{pass_n}: {count} leads processed")
+    if result.errors:
+        for e in result.errors[:10]:
+            print(f"  ERROR: {e}", file=sys.stderr)
+
+    return 0 if not result.errors else 1
+
+
 # ── entry point ─────────────────────────────────────────────────────
 
 
@@ -740,6 +849,7 @@ _HANDLERS = {
     "discover": cmd_discover,
     "sync": cmd_sync,
     "match": cmd_match,
+    "enrich-leads": cmd_enrich_leads,
     "bootstrap": cmd_bootstrap,
     "fetch-reviews": cmd_fetch_reviews,
     "enrich": cmd_enrich,
