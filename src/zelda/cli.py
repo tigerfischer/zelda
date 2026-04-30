@@ -1,11 +1,11 @@
 """Zelda CLI.
 
 Subcommands:
-    discover              — find dentists in a city via Google Places
+    discover              — discover dentists across all configured sources
     sync                  — push DB → Drive for a city
+    match                 — cross-source matching → unified leads list
     bootstrap             — pull Drive → fresh local DB (cross-machine setup)
     fetch-reviews         — capture per-place reviews from Google Maps
-    discover-practo-urls  — match leads to Practo profile URLs (creates stubs)
     enrich                — run all enrichment sources for a city (cached)
 
 All subcommands read configuration from `.env` via Settings, wire up
@@ -13,21 +13,27 @@ the appropriate gateway + repo + controller, and print a one-line
 result summary.
 
 Typical end-to-end flow for a city:
-    discover --city CITY                         # → leads in DB
-    discover-practo-urls --city CITY             # → Practo URL stubs
-    enrich --city CITY                           # → reviews + Practo data
-    sync --city CITY                             # → mirror to Drive sheet
+    discover --city CITY    # → per-source tables (google_places, practo, lybrate)
+    match --city CITY       # → unified leads table (enriched + standalone)
+    sync --city CITY        # → mirror all tables to Drive
 """
 
 import argparse
 import sys
 
+from loguru import logger
+
 from zelda.config import Settings
 from zelda.controllers.bootstrap import BootstrapController, BootstrapResult
-from zelda.controllers.discover import DiscoverController, DiscoverResult
-from zelda.controllers.discover_practo_urls import (
-    DiscoverPractoUrlsController,
-    DiscoverPractoUrlsResult,
+from zelda.controllers.discover import DiscoverController
+from zelda.controllers.discovery_pipeline import (
+    DiscoveryPipeline,
+    PipelineResult,
+)
+from zelda.controllers.discovery_steps import (
+    GooglePlacesDiscoveryStep,
+    LybrateDiscoveryStep,
+    PractoDiscoveryStep,
 )
 from zelda.controllers.enrich_practo import EnrichPractoController
 from zelda.controllers.enrichment_orchestrator import (
@@ -42,14 +48,27 @@ from zelda.controllers.fetch_reviews import (
     FetchReviewsController,
     FetchReviewsResult,
 )
-from zelda.controllers.sync import DriveSyncController, SyncResult
+from zelda.controllers.lybrate_directory import LybrateDirectoryController
+from zelda.controllers.practo_directory import PractoDirectoryController
+from zelda.controllers.sync_pipeline import SyncPipeline, SyncPipelineResult
+from zelda.controllers.sync_steps import (
+    GooglePlacesSyncStep,
+    LybrateSyncStep,
+    PractoSyncStep,
+)
 from zelda.gateways.google_drive import GoogleDriveGateway
 from zelda.gateways.google_places import GooglePlacesGateway
 from zelda.gateways.google_reviews import GoogleReviewsGateway
+from zelda.gateways.lybrate_directory import LybrateDirectoryGateway
+from zelda.gateways.practo_directory import PractoDirectoryGateway
 from zelda.gateways.practo_playwright import PractoPlaywrightGateway
-from zelda.gateways.practo_search import PractoSearchGateway
+from zelda.controllers.matching.pipeline import MatchingPipeline, MatchingResult
+from zelda.repositories.google_places_lead_repo import GooglePlacesLeadRepository
+from zelda.repositories.lead_repo import LeadRepository
+from zelda.repositories.match_pair_repo import MatchPairRepository
+from zelda.repositories.lybrate_listing_repo import LybrateListingRepository
+from zelda.repositories.practo_listing_repo import PractoListingRepository
 from zelda.repositories.practo_profile_repo import PractoProfileRepository
-from zelda.repositories.raw_lead_repo import RawLeadRepository
 from zelda.repositories.review_repo import ReviewRepository
 
 
@@ -93,19 +112,6 @@ def _non_negative_float(v: str) -> float:
     return f
 
 
-def _unit_float(v: str) -> float:
-    """Float in the closed interval [0.0, 1.0]."""
-    try:
-        f = float(v)
-    except ValueError as e:
-        raise argparse.ArgumentTypeError(
-            f"must be a number in [0.0, 1.0], got {v!r}"
-        ) from e
-    if not 0.0 <= f <= 1.0:
-        raise argparse.ArgumentTypeError(f"must be in [0.0, 1.0], got {f}")
-    return f
-
-
 # ── parser ──────────────────────────────────────────────────────────
 
 
@@ -117,27 +123,90 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_disc = sub.add_parser(
-        "discover", help="discover dentists in a city via Google Places"
+        "discover",
+        help=(
+            "discover dentists across all configured sources "
+            "(google_places, practo, lybrate)"
+        ),
     )
     p_disc.add_argument("--city", required=True, help="City name, e.g. Ludhiana")
     p_disc.add_argument(
-        "--max-results",
-        type=_max_results_type,
-        default=1,
+        "--sources",
+        default=None,
         help=(
-            "Cap on Place Details fetches (the cost driver). "
-            "0 = no fetches (dry run); 'all' = unlimited. Default: 1."
+            "Comma-separated subset of sources to run. Default: all "
+            "registered. Available: google_places, practo, lybrate."
         ),
     )
     p_disc.add_argument(
-        "--max-pages",
+        "--gp-max-results",
+        type=_max_results_type,
+        default=1,
+        help=(
+            "Google Places only — cap on Place Details fetches "
+            "(the cost driver). 0 = no fetches (dry run); 'all' = "
+            "unlimited. Default: 1."
+        ),
+    )
+    p_disc.add_argument(
+        "--gp-max-pages",
         type=_positive_int,
         default=1,
-        help="Pagination depth per text-search query. Default: 1.",
+        help=(
+            "Google Places only — pagination depth per text-search "
+            "query. Default: 1."
+        ),
     )
 
-    p_sync = sub.add_parser("sync", help="push DB → Drive for a city")
+    p_sync = sub.add_parser(
+        "sync",
+        help=(
+            "push DB → Drive for a city across all sources "
+            "(google_places, practo, lybrate)"
+        ),
+    )
     p_sync.add_argument("--city", required=True, help="City name, e.g. Ludhiana")
+    p_sync.add_argument(
+        "--sources",
+        default=None,
+        help=(
+            "Comma-separated subset of sources to sync. Default: all. "
+            "Available: google_places, practo, lybrate."
+        ),
+    )
+    p_sync.add_argument(
+        "--watch",
+        action="store_true",
+        help=(
+            "Run continuously, re-syncing every --interval-seconds. "
+            "Keeps Drive up-to-date without manual re-triggering. "
+            "Default: one-shot."
+        ),
+    )
+    p_sync.add_argument(
+        "--interval-seconds",
+        type=_positive_int,
+        default=60,
+        help="Polling interval for --watch mode. Default: 60.",
+    )
+
+    p_match = sub.add_parser(
+        "match",
+        help="cross-source matching → unified leads list (google_places + practo + lybrate)",
+    )
+    p_match.add_argument("--city", required=True, help="City name, e.g. Ludhiana")
+    p_match.add_argument(
+        "--geo-radius-km",
+        type=_non_negative_float,
+        default=1.0,
+        help="Geo pre-filter radius in km for GP↔Practo pairs. Default: 1.0.",
+    )
+    p_match.add_argument(
+        "--min-confidence",
+        type=_non_negative_float,
+        default=0.75,
+        help="Proposer minimum confidence to proceed to Reviewer. Default: 0.75.",
+    )
 
     p_boot = sub.add_parser(
         "bootstrap",
@@ -186,49 +255,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--headful",
         action="store_true",
         help="Show the browser window (off by default; useful for debug).",
-    )
-
-    p_dpu = sub.add_parser(
-        "discover-practo-urls",
-        help=(
-            "search Practo for each lead in a city and persist a stub "
-            "row when a candidate matches above the score threshold"
-        ),
-    )
-    p_dpu.add_argument("--city", required=True, help="City name, e.g. Ludhiana")
-    p_dpu.add_argument(
-        "--max-leads",
-        type=_max_results_type,
-        default=None,
-        help=(
-            "Cap on leads this run searches Practo for. "
-            "0 = none; 'all' = unlimited. Default: all "
-            "(unlike other commands — Practo search per lead is cheap "
-            "and benefits from the gateway's per-city listing cache)."
-        ),
-    )
-    p_dpu.add_argument(
-        "--threshold",
-        type=_unit_float,
-        default=0.7,
-        help=(
-            "Fuzzy-match score threshold (0.0–1.0). A candidate is "
-            "treated as a match when its score >= threshold. Default: 0.7."
-        ),
-    )
-    p_dpu.add_argument(
-        "--max-candidates",
-        type=_positive_int,
-        default=10,
-        help="Max candidates per Practo SERP page. Default: 10.",
-    )
-    p_dpu.add_argument(
-        "--dry-run",
-        action="store_true",
-        help=(
-            "Compute matches but do NOT upsert stubs. Useful for "
-            "calibrating the threshold without polluting the DB."
-        ),
     )
 
     p_enr = sub.add_parser(
@@ -293,60 +319,229 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def cmd_discover(args: argparse.Namespace, settings: Settings) -> int:
+    """Run the discovery pipeline for `--city`.
+
+    Wires up:
+      - GooglePlacesDiscoveryStep    → google_places_leads table
+      - PractoDiscoveryStep          → practo_listings table
+      - LybrateDiscoveryStep         → lybrate_listings table
+
+    Each step is independent: a failure or block in one source does
+    not abort the others. The pipeline returns aggregate counts plus
+    per-step breakdowns. Cross-source linking is a separate phase
+    (not yet built).
+    """
     settings.data_dir.mkdir(parents=True, exist_ok=True)
 
-    with GooglePlacesGateway(api_key=settings.google_places_api_key) as gateway:
-        repo = RawLeadRepository(settings.db_path)
-        try:
-            controller = DiscoverController(
-                gateway=gateway,
-                repo=repo,
-                artifacts_dir=settings.raw_artifacts_dir,
-            )
-            result: DiscoverResult = controller.run(
-                args.city,
-                max_results=args.max_results,
-                max_pages_per_query=args.max_pages,
-            )
-        finally:
-            repo.close()
+    only_steps: list[str] | None = None
+    if args.sources:
+        only_steps = [s.strip() for s in args.sources.split(",") if s.strip()]
 
+    # Open every source's repo + gateway. Resource management here
+    # is straightforward — three separate sqlite connections, one
+    # httpx client per directory gateway, one Places HTTP client.
+    gp_repo = GooglePlacesLeadRepository(settings.db_path)
+    practo_repo = PractoListingRepository(settings.db_path)
+    lybrate_repo = LybrateListingRepository(settings.db_path)
+    practo_gw = PractoDirectoryGateway()
+    lybrate_gw = LybrateDirectoryGateway()
+
+    try:
+        with GooglePlacesGateway(api_key=settings.google_places_api_key) as gp_gw:
+            gp_step = GooglePlacesDiscoveryStep(
+                controller=DiscoverController(
+                    gateway=gp_gw,
+                    repo=gp_repo,
+                    artifacts_dir=settings.raw_artifacts_dir,
+                ),
+                max_results=args.gp_max_results,
+                max_pages_per_query=args.gp_max_pages,
+            )
+            practo_step = PractoDiscoveryStep(
+                controller=PractoDirectoryController(
+                    gateway=practo_gw, repo=practo_repo,
+                ),
+            )
+            lybrate_step = LybrateDiscoveryStep(
+                controller=LybrateDirectoryController(
+                    gateway=lybrate_gw, repo=lybrate_repo,
+                ),
+            )
+            pipeline = DiscoveryPipeline(
+                steps=[gp_step, practo_step, lybrate_step],
+            )
+            result: PipelineResult = pipeline.run(
+                args.city, only_steps=only_steps,
+            )
+    finally:
+        practo_gw.close()
+        lybrate_gw.close()
+        gp_repo.close()
+        practo_repo.close()
+        lybrate_repo.close()
+
+    # Top-level summary + per-step breakdown
     print(
         f"discover {args.city}: "
-        f"deduped={result.deduped_total} "
-        f"new_eligible={result.new_eligible_count} "
-        f"after_max_results={result.after_max_results_count} "
-        f"fetched={result.details_fetched_count} "
-        f"inserted={result.inserted_count} "
-        f"errors={len(result.errors)} "
+        f"steps_ran={len(result.by_step)} "
+        f"discovered={result.total_discovered} "
+        f"inserted={result.total_inserted} "
+        f"errors={len(result.step_errors)} "
+        f"aborted_steps={[s.step_name for s in result.by_step.values() if s.aborted]} "
+        f"skipped={result.skipped_steps} "
         f"run_id={result.run_id}"
     )
-    return 0 if not result.errors else 1
+    for name, step_result in result.by_step.items():
+        print(
+            f"  [{name}] "
+            f"discovered={step_result.discovered} "
+            f"inserted={step_result.inserted} "
+            f"already_known={step_result.already_known} "
+            f"errors={len(step_result.errors)} "
+            f"aborted={step_result.aborted}"
+        )
+
+    if result.any_errors():
+        return 1
+    if result.any_aborted():
+        return 2
+    return 0
 
 
 def cmd_sync(args: argparse.Namespace, settings: Settings) -> int:
+    """Sync all per-source DB tables to Drive for --city.
+
+    Wires up three `SyncStep` instances (google_places, practo, lybrate)
+    into a `SyncPipeline`. Each step independently pushes its unsynced
+    rows to `{root}/{City}/discovery/{source}` and marks them synced
+    only after the Drive write succeeds (at-least-once delivery).
+
+    In --watch mode the pipeline polls every --interval-seconds, picking
+    up rows written by discovery/enrichment without manual re-triggering.
+    """
+    import time
+
+    only_steps: list[str] | None = None
+    if args.sources:
+        only_steps = [s.strip() for s in args.sources.split(",") if s.strip()]
+
     drive = GoogleDriveGateway.from_oauth_file(
         settings.google_oauth_client_secrets,
         settings.google_oauth_token_cache,
         settings.google_drive_folder_id,
     )
-    repo = RawLeadRepository(settings.db_path)
-    try:
-        controller = DriveSyncController(
-            drive=drive, repo=repo, artifacts_dir=settings.raw_artifacts_dir
-        )
-        result: SyncResult = controller.sync_city(args.city)
-    finally:
-        repo.close()
+    gp_repo = GooglePlacesLeadRepository(settings.db_path)
+    practo_repo = PractoListingRepository(settings.db_path)
+    lybrate_repo = LybrateListingRepository(settings.db_path)
 
+    try:
+        pipeline = SyncPipeline(steps=[
+            GooglePlacesSyncStep(
+                drive=drive, repo=gp_repo, artifacts_dir=settings.raw_artifacts_dir,
+            ),
+            PractoSyncStep(drive=drive, repo=practo_repo),
+            LybrateSyncStep(drive=drive, repo=lybrate_repo),
+        ])
+
+        def _run_once() -> int:
+            result: SyncPipelineResult = pipeline.run(args.city, only_steps=only_steps)
+            _print_sync_result(result)
+            return 0 if not result.any_errors() else 1
+
+        if args.watch:
+            logger.info(
+                "sync.watch city={c} interval={i}s sources={s}",
+                c=args.city, i=args.interval_seconds, s=only_steps or "all",
+            )
+            while True:
+                _run_once()
+                time.sleep(args.interval_seconds)
+        else:
+            return _run_once()
+    finally:
+        gp_repo.close()
+        practo_repo.close()
+        lybrate_repo.close()
+
+    return 0  # unreachable in watch mode, satisfies type checkers
+
+
+def _print_sync_result(result: SyncPipelineResult) -> None:
     print(
-        f"sync {args.city}: "
-        f"unsynced={result.n_unsynced} "
-        f"sheet_inserted={result.n_inserted_in_sheet} "
-        f"sheet_updated={result.n_updated_in_sheet} "
-        f"artifacts_uploaded={result.n_artifacts_uploaded} "
-        f"artifacts_skipped={result.n_artifacts_skipped} "
-        f"errors={len(result.errors)}"
+        f"sync {result.city}: "
+        f"run_id={result.run_id} "
+        f"steps_ran={len(result.by_step)} "
+        f"pulled={result.total_pulled} "
+        f"inserted={result.total_inserted} "
+        f"updated={result.total_updated} "
+        f"errors={len(result.step_errors)} "
+        f"aborted={result.any_aborted()}"
+    )
+    for name, step in result.by_step.items():
+        gp_extras = (
+            f" artifacts_uploaded={step.extras.get('artifacts_uploaded', 0)}"
+            f" artifacts_skipped={step.extras.get('artifacts_skipped', 0)}"
+            if name == "google_places" else ""
+        )
+        print(
+            f"  [{name}] "
+            f"pulled={step.pulled} "
+            f"inserted={step.inserted} "
+            f"updated={step.updated}"
+            f"{gp_extras} "
+            f"errors={len(step.errors)} "
+            f"aborted={step.aborted}"
+        )
+
+
+def cmd_match(args: argparse.Namespace, settings: Settings) -> int:
+    """Run cross-source matching for --city.
+
+    Loads all rows from google_places_leads, practo_listings, lybrate_listings,
+    runs the pre-filter → Proposer LLM → Reviewer LLM → match graph → Synthesis
+    LLM pipeline, and writes unified leads to the `leads` table.
+
+    Requires ANTHROPIC_API_KEY in .env.
+    """
+    import anthropic as _anthropic
+
+    if not settings.anthropic_api_key:
+        print("ERROR: ANTHROPIC_API_KEY is not set in .env", file=sys.stderr)
+        return 1
+
+    client = _anthropic.Anthropic(api_key=settings.anthropic_api_key)
+
+    gp_repo = GooglePlacesLeadRepository(settings.db_path)
+    practo_repo = PractoListingRepository(settings.db_path)
+    lybrate_repo = LybrateListingRepository(settings.db_path)
+    lead_repo = LeadRepository(settings.db_path)
+    pair_repo = MatchPairRepository(settings.db_path)
+
+    try:
+        pipeline = MatchingPipeline(
+            gp_repo=gp_repo,
+            practo_repo=practo_repo,
+            lybrate_repo=lybrate_repo,
+            lead_repo=lead_repo,
+            pair_repo=pair_repo,
+            anthropic_client=client,
+            geo_radius_km=args.geo_radius_km,
+            proposer_min_confidence=args.min_confidence,
+        )
+        result: MatchingResult = pipeline.run(args.city)
+    finally:
+        gp_repo.close()
+        practo_repo.close()
+        lybrate_repo.close()
+        lead_repo.close()
+        pair_repo.close()
+
+    print(result.summary())
+    print(
+        f"  enriched={result.enriched_leads} "
+        f"standalone={result.standalone_leads} "
+        f"total={result.total_leads} "
+        f"human_review={result.human_review_needed}"
     )
     return 0 if not result.errors else 1
 
@@ -359,7 +554,7 @@ def cmd_bootstrap(args: argparse.Namespace, settings: Settings) -> int:
         settings.google_oauth_token_cache,
         settings.google_drive_folder_id,
     )
-    repo = RawLeadRepository(settings.db_path)
+    repo = GooglePlacesLeadRepository(settings.db_path)
     try:
         controller = BootstrapController(
             drive=drive, repo=repo, artifacts_dir=settings.raw_artifacts_dir
@@ -386,7 +581,7 @@ def cmd_fetch_reviews(args: argparse.Namespace, settings: Settings) -> int:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     reviews_artifacts_dir = settings.data_dir / "reviews-artifacts"
 
-    lead_repo = RawLeadRepository(settings.db_path)
+    lead_repo = GooglePlacesLeadRepository(settings.db_path)
     review_repo = ReviewRepository(settings.db_path)
     try:
         with GoogleReviewsGateway.launch(headless=not args.headful) as gateway:
@@ -429,64 +624,6 @@ def cmd_fetch_reviews(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
-def cmd_discover_practo_urls(args: argparse.Namespace, settings: Settings) -> int:
-    """Search Practo for each lead in `--city` and persist URL stubs.
-
-    Wires up:
-      - PractoSearchGateway (Playwright)
-      - PractoProfileRepository
-      - DiscoverPractoUrlsController
-
-    Output is row-by-row outcome counts; the per-lead detail goes to
-    loguru. The gateway's per-city listing cache means N searches in
-    one city pay roughly one listing fetch worth of work.
-    """
-    settings.data_dir.mkdir(parents=True, exist_ok=True)
-
-    lead_repo = RawLeadRepository(settings.db_path)
-    practo_repo = PractoProfileRepository(settings.db_path)
-    gw = PractoSearchGateway.launch()
-
-    try:
-        leads = lead_repo.get_for_city(args.city)
-        if args.max_leads is not None:
-            leads = leads[: args.max_leads]
-        controller = DiscoverPractoUrlsController(
-            gateway=gw,
-            repo=practo_repo,
-            max_candidates_per_search=args.max_candidates,
-        )
-        result: DiscoverPractoUrlsResult = controller.discover_for_leads(
-            leads,
-            min_match_score=args.threshold,
-            dry_run=args.dry_run,
-        )
-    finally:
-        try:
-            gw.close()
-        except Exception:  # noqa: BLE001
-            pass
-        practo_repo.close()
-        lead_repo.close()
-
-    print(
-        f"discover-practo-urls {args.city}: "
-        f"attempted={result.n_attempted} "
-        f"matched={result.n_matched} "
-        f"no_match={result.n_no_match} "
-        f"already_known={result.n_already_known} "
-        f"blocked={result.n_blocked} "
-        f"errored={result.n_error} "
-        f"stopped_early={result.stopped_early} "
-        f"dry_run={args.dry_run}"
-    )
-    if result.errors:
-        return 1
-    if result.stopped_early:
-        return 2
-    return 0
-
-
 def cmd_enrich(args: argparse.Namespace, settings: Settings) -> int:
     """Run all enrichment sources for a city via the orchestrator.
 
@@ -507,21 +644,20 @@ def cmd_enrich(args: argparse.Namespace, settings: Settings) -> int:
     if args.sources:
         only_sources = [s.strip() for s in args.sources.split(",") if s.strip()]
 
-    lead_repo = RawLeadRepository(settings.db_path)
+    lead_repo = GooglePlacesLeadRepository(settings.db_path)
     review_repo = ReviewRepository(settings.db_path)
     practo_repo = PractoProfileRepository(settings.db_path)
 
     headless = not args.headful
-    # One Playwright runtime shared across all three gateways (reviews,
-    # practo profile enrich, practo URL search). Sync API only permits
-    # one runtime per process, so each gateway accepts an injected pw
-    # via `playwright=...` and skips stopping it on close.
+    # One Playwright runtime shared across both gateways (reviews +
+    # practo profile enrich). Sync API only permits one runtime per
+    # process, so each gateway accepts an injected pw via
+    # `playwright=...` and skips stopping it on close.
     from playwright.sync_api import sync_playwright as _sync_playwright
 
     pw = _sync_playwright().start()
     reviews_gw = GoogleReviewsGateway.launch(headless=headless, playwright=pw)
     practo_enrich_gw = PractoPlaywrightGateway.launch(playwright=pw)
-    practo_search_gw = PractoSearchGateway.launch(playwright=pw)
 
     try:
         reviews_ctrl = FetchReviewsController(
@@ -534,10 +670,6 @@ def cmd_enrich(args: argparse.Namespace, settings: Settings) -> int:
             gateway=practo_enrich_gw,
             repo=practo_repo,
         )
-        practo_discover_ctrl = DiscoverPractoUrlsController(
-            gateway=practo_search_gw,
-            repo=practo_repo,
-        )
         reviews_adapter = GoogleReviewsSourceAdapter(
             controller=reviews_ctrl,
             review_repo=review_repo,
@@ -545,7 +677,6 @@ def cmd_enrich(args: argparse.Namespace, settings: Settings) -> int:
         )
         practo_adapter = PractoSourceAdapter(
             enrich_controller=practo_enrich_ctrl,
-            discover_controller=practo_discover_ctrl,
             practo_repo=practo_repo,
         )
         orchestrator = EnrichmentOrchestrator(
@@ -560,13 +691,11 @@ def cmd_enrich(args: argparse.Namespace, settings: Settings) -> int:
             force_refresh=args.force_refresh,
         )
     finally:
-        # Close gateways (each respects owns_playwright; none stop pw).
-        for gw in (reviews_gw, practo_enrich_gw, practo_search_gw):
+        for gw in (reviews_gw, practo_enrich_gw):
             try:
                 gw.close()
             except Exception:  # noqa: BLE001
                 pass
-        # Now stop the shared Playwright once.
         try:
             pw.stop()
         except Exception:  # noqa: BLE001
@@ -610,9 +739,9 @@ def cmd_enrich(args: argparse.Namespace, settings: Settings) -> int:
 _HANDLERS = {
     "discover": cmd_discover,
     "sync": cmd_sync,
+    "match": cmd_match,
     "bootstrap": cmd_bootstrap,
     "fetch-reviews": cmd_fetch_reviews,
-    "discover-practo-urls": cmd_discover_practo_urls,
     "enrich": cmd_enrich,
 }
 

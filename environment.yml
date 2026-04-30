@@ -18,6 +18,9 @@ dependencies:
       - google-api-python-client==2.151.0
       - google-auth==2.36.0
       - google-auth-httplib2==0.2.0
+      # LLM matching
+      - anthropic==0.50.0
+      - jinja2==3.1.6
       # Headless browser (Google Maps reviews capture)
       - playwright==1.48.0
       # Tests

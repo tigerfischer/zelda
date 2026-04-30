@@ -9,6 +9,7 @@ class Settings(BaseSettings):
 
     google_places_api_key: str
     google_drive_folder_id: str
+    anthropic_api_key: str = ""
 
     # OAuth user credentials for Drive + Sheets.
     # `client_secrets` is the JSON downloaded from GCP > Credentials > OAuth client ID.
