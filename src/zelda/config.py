@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     google_drive_folder_id: str
     anthropic_api_key: str = ""
 
+    # Outreach pipeline (optional — only needed for Telegram bot + WhatsApp sending)
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""      # your personal chat ID with the bot
+    green_api_instance_id: str = ""
+    green_api_token: str = ""
+
     # OAuth user credentials for Drive + Sheets.
     # `client_secrets` is the JSON downloaded from GCP > Credentials > OAuth client ID.
     # `token_cache` is a file we create on first auth and reuse thereafter.

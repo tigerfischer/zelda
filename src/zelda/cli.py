@@ -334,6 +334,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Show browser windows (off by default; useful for debug).",
     )
 
+    p_load = sub.add_parser(
+        "load-outreach",
+        help="Load a generate-outreach JSONL file into the Telegram review queue",
+    )
+    p_load.add_argument("--file", required=True, help="Path to the JSONL file")
+
+    p_tg = sub.add_parser(
+        "telegram-bot",
+        help="Run the Telegram bot (message review, call reminders, reply alerts)",
+    )
+
     p_out = sub.add_parser(
         "generate-outreach",
         help=(
@@ -883,6 +894,65 @@ def cmd_enrich_leads(args: argparse.Namespace, settings: Settings) -> int:
     return 0 if not result.errors else 1
 
 
+def cmd_load_outreach(args: argparse.Namespace, settings: Settings) -> int:
+    """Load a generate-outreach JSONL into outreach_messages (status=pending_review).
+
+    Each record in the file becomes a row in outreach_messages ready for
+    the Telegram bot to pick up and send for review.
+    """
+    import json
+    import uuid
+    from datetime import datetime, timezone
+    from pathlib import Path
+
+    from zelda.models.outreach_message import OutreachMessage
+    from zelda.repositories.outreach_repo import OutreachRepository
+
+    path = Path(args.file)
+    if not path.exists():
+        print(f"File not found: {path}", file=sys.stderr)
+        return 1
+
+    repo = OutreachRepository(settings.db_path)
+    n_loaded = 0
+    n_skipped = 0
+
+    with path.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            record = json.loads(line)
+            existing = repo.get_by_lead(record["lead_id"])
+            if existing and existing.status not in ("skipped",):
+                n_skipped += 1
+                continue
+            msg = OutreachMessage(
+                id=str(uuid.uuid4()),
+                lead_id=record["lead_id"],
+                clinic_name=record["clinic_name"],
+                city=record["city"],
+                phone=record.get("phone") or "",
+                message=record["message"],
+                status="pending_review",
+                created_at=datetime.now(timezone.utc),
+            )
+            repo.upsert(msg)
+            n_loaded += 1
+
+    repo.close()
+    print(f"Loaded {n_loaded} messages into review queue ({n_skipped} already in pipeline).")
+    return 0
+
+
+def cmd_telegram_bot(args: argparse.Namespace, settings: Settings) -> int:
+    """Start the Telegram bot. Runs until interrupted."""
+    import asyncio
+    from zelda.outreach.telegram_bot import run_bot
+    asyncio.run(run_bot(settings))
+    return 0
+
+
 def cmd_generate_outreach(args: argparse.Namespace, settings: Settings) -> int:
     """Generate a personalized WhatsApp first message for every lead in a city.
 
@@ -1004,6 +1074,8 @@ _HANDLERS = {
     "fetch-reviews": cmd_fetch_reviews,
     "enrich": cmd_enrich,
     "generate-outreach": cmd_generate_outreach,
+    "load-outreach": cmd_load_outreach,
+    "telegram-bot": cmd_telegram_bot,
 }
 
 
