@@ -602,6 +602,9 @@ def cmd_bootstrap(args: argparse.Namespace, settings: Settings) -> int:
 
 
 def cmd_fetch_reviews(args: argparse.Namespace, settings: Settings) -> int:
+    from zelda.progress import ProgressTracker
+    from zelda.util import slugify
+
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     reviews_artifacts_dir = settings.data_dir / "reviews-artifacts"
 
@@ -609,6 +612,13 @@ def cmd_fetch_reviews(args: argparse.Namespace, settings: Settings) -> int:
     review_repo = ReviewRepository(settings.db_path)
     try:
         with GoogleReviewsGateway.launch(headless=not args.headful) as gateway:
+            run_id = f"fetch-reviews-{args.city.lower()}-{__import__('secrets').token_hex(4)}"
+            tracker = ProgressTracker(
+                job="fetch-reviews",
+                city=args.city,
+                run_id=run_id,
+                status_path=settings.data_dir / "progress" / f"fetch-reviews-{slugify(args.city)}.json",
+            )
             controller = FetchReviewsController(
                 gateway=gateway,
                 review_repo=review_repo,
@@ -621,7 +631,14 @@ def cmd_fetch_reviews(args: argparse.Namespace, settings: Settings) -> int:
                 max_reviews_per_place=args.max_reviews_per_place,
                 refresh_min_age_days=args.refresh_min_age_days,
                 force_refresh=args.force_refresh,
+                on_start=tracker.set_total,
+                on_progress=lambda i, total, name, summary: tracker.update(
+                    name=name,
+                    status=summary["fetch_status"],
+                    reviews=summary["reviews_captured"],
+                ),
             )
+            tracker.finish(blocked=result.aborted_due_to_block)
     finally:
         review_repo.close()
         lead_repo.close()

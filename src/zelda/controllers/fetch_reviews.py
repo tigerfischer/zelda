@@ -125,6 +125,8 @@ class FetchReviewsController:
         refresh_min_age_days: float = 7.0,
         force_refresh: bool = False,
         run_id: str | None = None,
+        on_start: Callable[[int], None] | None = None,
+        on_progress: Callable[[int, int, str, dict], None] | None = None,
     ) -> FetchReviewsResult:
         if not city or not city.strip():
             raise ValueError("city must be non-empty")
@@ -169,6 +171,9 @@ class FetchReviewsController:
                 city=city,
             )
             return result
+
+        if on_start is not None:
+            on_start(len(eligible))
 
         artifact_dir = self._artifacts_dir / slugify(city)
         artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -228,6 +233,9 @@ class FetchReviewsController:
                 n=summary["reviews_captured"],
                 tr=summary["is_truncated"],
             )
+
+            if on_progress is not None:
+                on_progress(i, len(eligible), lead.name, summary)
 
             if result.aborted_due_to_block:
                 logger.error(
