@@ -120,12 +120,25 @@ def _to_chat_id(phone: str) -> str:
     return f"{digits}@c.us"
 
 
+def _ist_now():
+    from datetime import timedelta
+    return datetime.now(timezone.utc) + timedelta(seconds=int(_IST_OFFSET))
+
+
 def _is_send_window() -> bool:
-    """True if current IST time is between 09:00 and 19:00."""
-    utc_now = datetime.now(timezone.utc)
-    ist_seconds = (utc_now.hour * 3600 + utc_now.minute * 60 + utc_now.second + _IST_OFFSET) % 86400
-    ist_hour = ist_seconds / 3600
-    return 9.0 <= ist_hour < 19.0
+    """General send window: 09:00–19:00 IST. Used for replies and reminders."""
+    t = _ist_now()
+    return 9 <= t.hour < 19
+
+
+def is_initial_outreach_window() -> bool:
+    """Cold outreach only: 10:00–13:00 IST, Monday–Saturday.
+
+    Dentists are between morning patients during this window — highest
+    chance of a read within the hour. Sunday excluded (personal day).
+    """
+    t = _ist_now()
+    return t.weekday() < 6 and 10 <= t.hour < 13
 
 
 def _parse_notification(body: dict) -> dict | None:

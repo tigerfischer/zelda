@@ -11,23 +11,30 @@ Setup (one-time):
         to find your chat ID in the response)
     4. Set GREEN_API_INSTANCE_ID and GREEN_API_TOKEN in .env
 
-The bot does three things on a continuous loop:
+The bot does four things on a continuous loop:
 
   1. Message review queue
      Sends unreviewed WhatsApp drafts to Telegram with [Approve] [Edit] [Skip].
-     Approve → marks approved + sends via Green API immediately.
+     Approve → marks status=approved (does NOT send immediately).
      Edit → bot asks for new text, shows it again for re-approval.
      Skip → marks skipped, removes from queue.
 
-  2. Call reminders (checked every 5 minutes)
+  2. Dispatch approved messages (every 5 minutes)
+     Sends approved-but-not-yet-sent messages when ALL of:
+       - Current IST time is 10:00–13:00, Monday–Saturday
+       - Fewer than DAILY_OUTREACH_LIMIT (10) initial messages sent today
+     Notifies Vaibhav in Telegram when each message goes out.
+     Replies and call reminders are never counted against this limit.
+
+  3. Call reminders (checked every 5 minutes)
      Finds leads where sent_at > 2 days ago and call_reminder_sent_at IS NULL.
      Generates a personalized call brief via CallBriefAgent.
      Posts to Telegram. Marks call_reminder_sent_at.
 
-  3. Reply alerts (polled from Green API every 15 seconds)
+  4. Reply alerts (polled from Green API every 15 seconds)
      Incoming WhatsApp replies are matched to outreach records by phone number.
      ReplyDraftAgent generates a draft reply.
-     Posted to Telegram with [Approve] [Edit] [Discard].
+     Posted to Telegram with [Send reply] [Discard].
      On Approve → sends via Green API.
 
 Requires: python-telegram-bot>=20.0 (async PTB)
@@ -46,8 +53,12 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from zelda.gateways.green_api import is_initial_outreach_window
+
 if TYPE_CHECKING:
     from zelda.config import Settings
+
+DAILY_OUTREACH_LIMIT = 10
 
 
 async def run_bot(settings: "Settings") -> None:
@@ -138,36 +149,19 @@ async def run_bot(settings: "Settings") -> None:
             await _handle_discard_reply(query, data[14:], context)
 
     async def _handle_approve(query, outreach_id: str, context) -> None:
+        """Mark approved — actual send happens via the dispatch task during the window."""
         msg = outreach_repo.get(outreach_id)
         if not msg:
             await query.edit_message_text("Message not found.")
             return
-
-        if green_api:
-            try:
-                wa_id = green_api.send_message(msg.phone, msg.message)
-                now = datetime.now(timezone.utc)
-                outreach_repo.set_status(
-                    outreach_id, "sent",
-                    sent_at=now, approved_at=now,
-                )
-                outreach_repo.upsert(
-                    outreach_repo.get(outreach_id).__class__(
-                        **{**outreach_repo.get(outreach_id).model_dump(), "whatsapp_msg_id": wa_id}
-                    )
-                )
-                await query.edit_message_text(
-                    f"Sent to {msg.clinic_name} ({msg.phone})"
-                )
-            except ValueError as e:
-                await query.edit_message_text(f"Not sent: {e}")
-            except Exception as e:  # noqa: BLE001
-                await query.edit_message_text(f"Send failed: {e}")
-        else:
-            outreach_repo.set_status(outreach_id, "approved", approved_at=datetime.now(timezone.utc))
-            await query.edit_message_text(
-                f"Approved (Green API not configured — message queued for manual send)"
-            )
+        outreach_repo.set_status(outreach_id, "approved", approved_at=datetime.now(timezone.utc))
+        sent_today = outreach_repo.count_initial_sent_today()
+        remaining = max(0, DAILY_OUTREACH_LIMIT - sent_today)
+        await query.edit_message_text(
+            f"Approved — {msg.clinic_name}\n"
+            f"Will send during 10am–1pm IST window.\n"
+            f"Sent today: {sent_today}/{DAILY_OUTREACH_LIMIT}  |  Queued: {remaining} slots left"
+        )
 
     async def _handle_edit_request(query, outreach_id: str, pending: dict, context) -> None:
         msg = await query.message.reply_text(  # type: ignore[union-attr]
@@ -317,6 +311,65 @@ async def run_bot(settings: "Settings") -> None:
                 reply_markup=keyboard,
             )
 
+    async def dispatch_approved_messages(app) -> None:
+        """Send approved-but-not-yet-sent messages during the outreach window.
+
+        Called every 5 minutes. Sends at most one message per tick so that
+        inter-message spacing across the 10am–1pm window feels natural
+        (~18 min average gap for 10 messages over 3 hours).
+        """
+        if not is_initial_outreach_window():
+            return
+        sent_today = outreach_repo.count_initial_sent_today()
+        if sent_today >= DAILY_OUTREACH_LIMIT:
+            return
+
+        queue = outreach_repo.get_approved_unsent()
+        if not queue:
+            return
+
+        msg = queue[0]  # oldest approved first
+        if not green_api:
+            logger.warning("telegram_bot.dispatch.no_green_api")
+            return
+
+        try:
+            wa_id = green_api.send_message(msg.phone, msg.message)
+        except ValueError as e:
+            # Outside general send window — shouldn't happen since we checked outreach window,
+            # but guard anyway
+            logger.warning("telegram_bot.dispatch.window_error err={e}", e=e)
+            return
+        except Exception as e:  # noqa: BLE001
+            logger.error("telegram_bot.dispatch.send_error clinic={n} err={e}", n=msg.clinic_name, e=e)
+            await app.bot.send_message(
+                chat_id=chat_id,
+                text=f"Failed to send to {msg.clinic_name} ({msg.phone}): {e}",
+            )
+            return
+
+        now = datetime.now(timezone.utc)
+        outreach_repo.set_status(msg.id, "sent", sent_at=now)
+        updated = outreach_repo.get(msg.id)
+        if updated:
+            updated = updated.model_copy(update={"whatsapp_msg_id": wa_id})
+            outreach_repo.upsert(updated)
+
+        new_count = sent_today + 1
+        remaining = DAILY_OUTREACH_LIMIT - new_count
+        logger.info(
+            "telegram_bot.dispatch.sent clinic={n} sent_today={c}/{lim}",
+            n=msg.clinic_name, c=new_count, lim=DAILY_OUTREACH_LIMIT,
+        )
+        await app.bot.send_message(
+            chat_id=chat_id,
+            text=(
+                f"Sent to {msg.clinic_name} ({msg.phone})\n"
+                f"Today: {new_count}/{DAILY_OUTREACH_LIMIT}"
+                + (f"  |  {remaining} slots remaining" if remaining > 0 else "  |  Daily limit reached")
+            ),
+        )
+
     async def sync_drive_recordings(app) -> None:
         if drive_sync:
             try:
@@ -354,7 +407,8 @@ async def run_bot(settings: "Settings") -> None:
 
     # Background loops
     await asyncio.gather(
-        _periodic(app, check_call_reminders, 300),       # every 5 min
+        _periodic(app, dispatch_approved_messages, 300),  # every 5 min — sends during window
+        _periodic(app, check_call_reminders, 300),        # every 5 min
         _periodic(app, poll_whatsapp_replies, 15),        # every 15 sec
         _periodic(app, sync_drive_recordings, 600),       # every 10 min
     )

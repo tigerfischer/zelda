@@ -170,6 +170,30 @@ class OutreachRepository:
         ).fetchall()
         return [_from_row(r) for r in rows]
 
+    def get_approved_unsent(self) -> list[OutreachMessage]:
+        """Messages approved but not yet sent — waiting for the dispatch window."""
+        rows = self._conn.execute(
+            "SELECT * FROM outreach_messages WHERE status = 'approved' ORDER BY approved_at"
+        ).fetchall()
+        return [_from_row(r) for r in rows]
+
+    def count_initial_sent_today(self) -> int:
+        """Initial outreach messages sent today (IST date).
+
+        Uses UTC date shifted by +5:30 so the count rolls over at IST midnight,
+        not UTC midnight — avoids crediting yesterday's sends to today's quota.
+        """
+        row = self._conn.execute(
+            """
+            SELECT COUNT(*) FROM outreach_messages
+            WHERE status IN ('sent', 'call_reminded', 'called')
+              AND sent_at IS NOT NULL
+              AND date(datetime(sent_at, '+5 hours', '30 minutes')) =
+                  date(datetime('now', '+5 hours', '30 minutes'))
+            """
+        ).fetchone()
+        return row[0] if row else 0
+
     def list_for_city(self, city: str) -> list[OutreachMessage]:
         rows = self._conn.execute(
             "SELECT * FROM outreach_messages WHERE city = ? ORDER BY created_at DESC",

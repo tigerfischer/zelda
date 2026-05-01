@@ -88,16 +88,22 @@ The bot will immediately send the first draft to your Telegram for review.
 | Event | What the bot does |
 |---|---|
 | Bot starts | Pushes all pending drafts to Telegram for review |
-| You tap **Approve & Send** | Message sent via WhatsApp immediately |
+| You tap **Approve** | Message queued — bot will send it during the window |
 | You tap **Edit** | Bot asks for new text, re-shows for approval |
+| **10am–1pm IST, Mon–Sat** | Bot sends up to 10 approved messages, one every ~18 min |
+| Daily limit (10) reached | Remaining approved messages carry over to the next day |
 | T+2 days after send | Bot sends personalized call brief to Telegram |
 | Lead replies on WhatsApp | Bot drafts a reply, asks for your approval |
+| You approve reply | Sent immediately (replies are not capped or windowed) |
 | You drop a recording in Drive | Bot transcribes it within 10 minutes, attaches to lead |
+
+**Tip:** Review and approve messages any time — even the night before. The bot handles the pacing.
 
 ---
 
 ### Anti-ban reminders
-- Send window is enforced automatically: **9am–7pm IST only**
-- The bot spaces messages by default — don't try to blast a batch manually
-- Keep volume under ~30 messages/day until the number has a 2-week history
+- Initial outreach window enforced automatically: **10am–1pm IST, Mon–Sat**
+- Replies and call reminders send anytime **9am–7pm IST**
+- Max 10 initial messages per day — enforced in code, can't be overridden by accident
+- Keep volume at 10/day for the first month to build sender reputation
 - If a lead replies "stop" or "not interested" — **Skip** all future messages to that number
