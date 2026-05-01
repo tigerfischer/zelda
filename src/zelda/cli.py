@@ -66,6 +66,7 @@ from zelda.gateways.practo_directory import PractoDirectoryGateway
 from zelda.gateways.practo_playwright import PractoPlaywrightGateway
 from zelda.controllers.enrichment.pipeline import EnrichLeadsPipeline, EnrichLeadsResult
 from zelda.controllers.matching.pipeline import MatchingPipeline, MatchingResult
+from zelda.outreach.whatsapp_personalizer import WhatsAppPersonalizer, lead_context_from_enrichment
 from zelda.repositories.google_places_lead_repo import GooglePlacesLeadRepository
 from zelda.repositories.lead_enrichment_repo import LeadEnrichmentRepository
 from zelda.repositories.lead_repo import LeadRepository
@@ -331,6 +332,29 @@ def build_parser() -> argparse.ArgumentParser:
         "--headful",
         action="store_true",
         help="Show browser windows (off by default; useful for debug).",
+    )
+
+    p_out = sub.add_parser(
+        "generate-outreach",
+        help=(
+            "generate personalized WhatsApp first messages for every lead "
+            "in a city, using Claude Haiku — output saved to JSONL"
+        ),
+    )
+    p_out.add_argument("--city", required=True, help="City name, e.g. Ludhiana")
+    p_out.add_argument(
+        "--max-leads",
+        type=_max_results_type,
+        default=None,
+        help="Cap on leads processed this run. 'all' or omit = unlimited.",
+    )
+    p_out.add_argument(
+        "--output",
+        default=None,
+        help=(
+            "Path to write JSONL output. Default: "
+            "data/outreach/{city}/messages_{run_id}.jsonl"
+        ),
     )
 
     return parser
@@ -859,6 +883,115 @@ def cmd_enrich_leads(args: argparse.Namespace, settings: Settings) -> int:
     return 0 if not result.errors else 1
 
 
+def cmd_generate_outreach(args: argparse.Namespace, settings: Settings) -> int:
+    """Generate a personalized WhatsApp first message for every lead in a city.
+
+    For each lead that has an enrichment record:
+      1. Build a LeadContext from the enrichment signals
+      2. Call Claude Haiku (WhatsAppPersonalizer) to produce a tailored message
+      3. Write one JSON line to the output file
+
+    Output JSONL fields: lead_id, clinic_name, city, phone, message, generated_at
+
+    The output file is safe to review and edit before any sending step.
+    """
+    import json
+    import time
+    from datetime import datetime, timezone
+    from pathlib import Path
+
+    import anthropic
+
+    city = args.city.strip()
+    if not city:
+        print("--city must be non-empty", file=sys.stderr)
+        return 1
+
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
+
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    if args.output:
+        output_path = Path(args.output)
+    else:
+        out_dir = settings.data_dir / "outreach" / city.lower().replace(" ", "_")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        output_path = out_dir / f"messages_{run_id}.jsonl"
+
+    lead_repo = LeadRepository(settings.db_path)
+    enrichment_repo = LeadEnrichmentRepository(settings.db_path)
+
+    try:
+        leads = lead_repo.get_for_city(city)
+    finally:
+        lead_repo.close()
+
+    if not leads:
+        print(f"No leads found for city={city!r}. Run 'match --city {city}' first.")
+        return 1
+
+    if args.max_leads is not None:
+        leads = leads[: args.max_leads]
+
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    personalizer = WhatsAppPersonalizer(client)
+
+    n_total = len(leads)
+    n_ok = 0
+    n_skip = 0
+    n_err = 0
+
+    print(
+        f"generate-outreach  city={city}  leads={n_total}  output={output_path}\n"
+    )
+
+    with output_path.open("w", encoding="utf-8") as fout:
+        for i, lead in enumerate(leads, start=1):
+            enrichment = enrichment_repo.get(lead.lead_id)
+            if enrichment is None:
+                logger.warning(
+                    "generate_outreach.no_enrichment lead_id={lid}", lid=lead.lead_id
+                )
+                n_skip += 1
+                continue
+
+            ctx = lead_context_from_enrichment(enrichment)
+            try:
+                message = personalizer.personalize(ctx)
+                n_ok += 1
+            except Exception as e:  # noqa: BLE001
+                logger.error(
+                    "generate_outreach.error lead_id={lid} err={e}",
+                    lid=lead.lead_id, e=e,
+                )
+                n_err += 1
+                continue
+
+            record = {
+                "lead_id": lead.lead_id,
+                "clinic_name": lead.name,
+                "city": city,
+                "phone": lead.phone,
+                "message": message,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            fout.write(json.dumps(record, ensure_ascii=False) + "\n")
+            fout.flush()
+
+            print(f"[{i:4d}/{n_total}]  {lead.name[:55]}")
+
+            # Polite inter-call pause to avoid Anthropic rate-limit bursts
+            if i < n_total:
+                time.sleep(0.3)
+
+    enrichment_repo.close()
+
+    print(
+        f"\ndone  ok={n_ok}  skipped={n_skip}  errors={n_err}\n"
+        f"output: {output_path}"
+    )
+    return 0 if n_err == 0 else 1
+
+
 # ── entry point ─────────────────────────────────────────────────────
 
 
@@ -870,6 +1003,7 @@ _HANDLERS = {
     "bootstrap": cmd_bootstrap,
     "fetch-reviews": cmd_fetch_reviews,
     "enrich": cmd_enrich,
+    "generate-outreach": cmd_generate_outreach,
 }
 
 
