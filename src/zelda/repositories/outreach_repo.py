@@ -147,6 +147,26 @@ class OutreachRepository:
         ).fetchall()
         return [_from_row(r) for r in rows]
 
+    def get_pending_review_unpushed(self, limit: int | None = None) -> list[OutreachMessage]:
+        """Pending-review messages not yet sent to Telegram (telegram_review_msg_id IS NULL)."""
+        sql = (
+            "SELECT * FROM outreach_messages "
+            "WHERE status = 'pending_review' AND telegram_review_msg_id IS NULL "
+            "ORDER BY created_at"
+        )
+        if limit is not None:
+            sql += f" LIMIT {limit}"
+        rows = self._conn.execute(sql).fetchall()
+        return [_from_row(r) for r in rows]
+
+    def count_pushed_pending_review(self) -> int:
+        """Messages already visible in Telegram but not yet approved/skipped."""
+        row = self._conn.execute(
+            "SELECT COUNT(*) FROM outreach_messages "
+            "WHERE status = 'pending_review' AND telegram_review_msg_id IS NOT NULL"
+        ).fetchone()
+        return row[0] if row else 0
+
     def get_due_call_reminders(self, *, older_than_days: float = 2.0) -> list[OutreachMessage]:
         """Sent messages where the call reminder hasn't fired yet and T+N days have elapsed."""
         cutoff = datetime.now(timezone.utc)

@@ -17,6 +17,13 @@ class Settings(BaseSettings):
     green_api_instance_id: str = ""
     green_api_token: str = ""
 
+    # Meta WhatsApp Cloud API (alternative to Green API — official channel, no personal SIM needed)
+    # See src/zelda/gateways/whatsapp_cloud_api.py for setup instructions.
+    whatsapp_cloud_phone_number_id: str = ""
+    whatsapp_cloud_access_token: str = ""
+    whatsapp_cloud_webhook_verify_token: str = ""
+    whatsapp_cloud_webhook_port: int = 8080
+
     # OAuth user credentials for Drive + Sheets.
     # `client_secrets` is the JSON downloaded from GCP > Credentials > OAuth client ID.
     # `token_cache` is a file we create on first auth and reuse thereafter.

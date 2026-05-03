@@ -59,6 +59,7 @@ if TYPE_CHECKING:
     from zelda.config import Settings
 
 DAILY_OUTREACH_LIMIT = 10
+REVIEW_BUFFER = DAILY_OUTREACH_LIMIT * 2  # messages kept visible in Telegram at a time
 
 
 async def run_bot(settings: "Settings") -> None:
@@ -82,6 +83,7 @@ async def run_bot(settings: "Settings") -> None:
     import anthropic
     from zelda.gateways.google_drive import GoogleDriveGateway
     from zelda.gateways.green_api import GreenAPIGateway
+    from zelda.gateways.whatsapp_cloud_api import WhatsAppCloudAPIGateway
     from zelda.outreach.call_brief_agent import generate_call_brief
     from zelda.outreach.drive_recording_sync import DriveRecordingSync
     from zelda.outreach.reply_draft_agent import draft_reply
@@ -99,11 +101,23 @@ async def run_bot(settings: "Settings") -> None:
     enrichment_repo = LeadEnrichmentRepository(settings.db_path)
     anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
-    green_api: GreenAPIGateway | None = None
-    if settings.green_api_instance_id and settings.green_api_token:
+    # Pick WhatsApp gateway — Cloud API takes priority if configured; falls back to Green API.
+    green_api: GreenAPIGateway | WhatsAppCloudAPIGateway | None = None
+    if settings.whatsapp_cloud_phone_number_id and settings.whatsapp_cloud_access_token:
+        cloud_gw = WhatsAppCloudAPIGateway(
+            settings.whatsapp_cloud_phone_number_id,
+            settings.whatsapp_cloud_access_token,
+            webhook_verify_token=settings.whatsapp_cloud_webhook_verify_token,
+            webhook_port=settings.whatsapp_cloud_webhook_port,
+        )
+        cloud_gw.start_webhook_server()
+        green_api = cloud_gw
+        logger.info("telegram_bot.whatsapp_gateway=cloud_api")
+    elif settings.green_api_instance_id and settings.green_api_token:
         green_api = GreenAPIGateway(
             settings.green_api_instance_id, settings.green_api_token
         )
+        logger.info("telegram_bot.whatsapp_gateway=green_api")
 
     drive_sync: DriveRecordingSync | None = None
     if settings.google_drive_folder_id:
@@ -162,6 +176,7 @@ async def run_bot(settings: "Settings") -> None:
             f"Will send during 10am–1pm IST window.\n"
             f"Sent today: {sent_today}/{DAILY_OUTREACH_LIMIT}  |  Queued: {remaining} slots left"
         )
+        await push_review_queue(context.application)
 
     async def _handle_edit_request(query, outreach_id: str, pending: dict, context) -> None:
         msg = await query.message.reply_text(  # type: ignore[union-attr]
@@ -172,6 +187,7 @@ async def run_bot(settings: "Settings") -> None:
     async def _handle_skip(query, outreach_id: str, context) -> None:
         outreach_repo.set_status(outreach_id, "skipped")
         await query.edit_message_text("Skipped.")
+        await push_review_queue(context.application)
 
     async def _handle_approve_reply(query, outreach_id: str, context) -> None:
         msg = outreach_repo.get(outreach_id)
@@ -215,10 +231,16 @@ async def run_bot(settings: "Settings") -> None:
     # ── background tasks ───────────────────────────────────────────
 
     async def push_review_queue(app) -> None:
-        """Send all pending_review drafts to Telegram."""
-        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-        queue = outreach_repo.get_pending_review()
-        for msg in queue:
+        """Top up the Telegram review queue to REVIEW_BUFFER messages.
+
+        Only pushes messages not yet sent to Telegram. Safe to call repeatedly —
+        already-visible messages are never re-sent.
+        """
+        already_visible = outreach_repo.count_pushed_pending_review()
+        slots = max(0, REVIEW_BUFFER - already_visible)
+        if not slots:
+            return
+        for msg in outreach_repo.get_pending_review_unpushed(limit=slots):
             await _send_for_review(app.bot, chat_id, msg, outreach_repo)
 
     async def check_call_reminders(app) -> None:
@@ -369,6 +391,7 @@ async def run_bot(settings: "Settings") -> None:
                 + (f"  |  {remaining} slots remaining" if remaining > 0 else "  |  Daily limit reached")
             ),
         )
+        await push_review_queue(app)
 
     async def sync_drive_recordings(app) -> None:
         if drive_sync:

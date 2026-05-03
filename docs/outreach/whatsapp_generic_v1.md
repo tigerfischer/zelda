@@ -12,11 +12,11 @@
 ```
 Hi Doctor — your clinic is likely leaving three things on the table every week:
 
-• Google-generated new patients — the "dentist near me" searches that go to competitors with a better-optimized profile and more reviews
-• Appointments lost to no-shows — because no WhatsApp reminder went out the day before
-• Repeat patient visits — the 6-month recall that no one ever followed up on
+• New patients from Google — every "dentist near me" search goes to the clinic with the strongest Google Business Profile and the most recent reviews; we optimize both
+• Appointment slots lost to no-shows — because no reminder went out 24 hours before
+• Repeat visits from past patients — most clinics have hundreds of patients who haven't returned in 6+ months and have never been followed up on
 
-Zelva handles all three automatically: we optimize your Google Business Profile, collect reviews, send appointment reminders, and bring lapsed patients back — all over WhatsApp, built specifically for Indian dental clinics.
+Zelva handles all three automatically: Google profile optimization, review collection, appointment reminders, and patient recall — all over WhatsApp, built for Indian dental clinics.
 
 Worth 5 minutes to see what this looks like for your clinic?
 ```
@@ -28,12 +28,12 @@ Worth 5 minutes to see what this looks like for your clinic?
 **Opening line:** "Leaving on the table" is more neutral than "losing" — it implies untapped upside, not blame. Sets up the three bullets as recoverable opportunities, not failures.
 
 **The three bullets — explicit outcomes:**
-Each bullet names the outcome the doctor wants, then explains what's currently blocking it:
-- Bullet 1 = *Google-generated new patients* (explicit). The block: competitors with better GBP + more reviews. This primes both the GBP optimization and review collection value props.
-- Bullet 2 = *Appointments lost to no-shows* (concrete cost: ₹500–3,000 per slot). The block: no reminder workflow. Every independent clinic knows this pain.
-- Bullet 3 = *Repeat patient visits* (explicit recurring revenue). The block: no recall system. Most Indian clinics have zero automation here.
+Each bullet names the desired outcome, then names the gap preventing it:
+- Bullet 1 = *New patients from Google* (the doctor wants more patients; Google is the main free acquisition channel). The gap: competitors with better GBP + more reviews outrank them. "We optimize both" closes the loop on the fix right inside the problem statement — so GBP optimization isn't buried in the solution line.
+- Bullet 2 = *Appointment slots lost to no-shows* (concrete cost: ₹500–3,000 per slot gone dark). The gap: no reminder workflow. Every independent clinic knows this pain viscerally.
+- Bullet 3 = *Repeat visits from past patients* (explicit recurring revenue opportunity). "Hundreds of patients who haven't returned in 6+ months" makes the size of the opportunity tangible — it's not a theoretical benefit, it's a specific cohort sitting in their own patient register. Most Indian clinics have zero recall automation.
 
-Naming the outcome first ("Google-generated new patients," "repeat patient visits") gives the doctor something to want, not just a problem to recognise.
+Naming the outcome first ("new patients from Google," "repeat visits") gives the doctor something to want, not just a problem to recognise.
 
 **Solution line — what we actually do:**
 Four specific capabilities listed plainly: GBP optimization, review collection, appointment reminders, patient recall. This is the "how we help" made fully explicit. "All over WhatsApp" signals channel fit. "Built specifically for Indian dental clinics" is the differentiation claim against Grexa (horizontal) and every US tool (SMS + USD-priced).
