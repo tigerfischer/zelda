@@ -83,6 +83,7 @@ async def run_bot(settings: "Settings") -> None:
     import anthropic
     from zelda.gateways.google_drive import GoogleDriveGateway
     from zelda.gateways.green_api import GreenAPIGateway
+    from zelda.gateways.ultramsg import UltraMsgGateway
     from zelda.gateways.whatsapp_cloud_api import WhatsAppCloudAPIGateway
     from zelda.outreach.call_brief_agent import generate_call_brief
     from zelda.outreach.drive_recording_sync import DriveRecordingSync
@@ -102,8 +103,8 @@ async def run_bot(settings: "Settings") -> None:
     anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     personalizer = WhatsAppPersonalizer(anthropic_client)
 
-    # Pick WhatsApp gateway — Cloud API takes priority if configured; falls back to Green API.
-    green_api: GreenAPIGateway | WhatsAppCloudAPIGateway | None = None
+    # Pick WhatsApp gateway — priority: Cloud API → UltraMsg → Green API.
+    green_api: GreenAPIGateway | UltraMsgGateway | WhatsAppCloudAPIGateway | None = None
     if settings.whatsapp_cloud_phone_number_id and settings.whatsapp_cloud_access_token:
         cloud_gw = WhatsAppCloudAPIGateway(
             settings.whatsapp_cloud_phone_number_id,
@@ -114,6 +115,13 @@ async def run_bot(settings: "Settings") -> None:
         cloud_gw.start_webhook_server()
         green_api = cloud_gw
         logger.info("telegram_bot.whatsapp_gateway=cloud_api")
+    elif settings.ultramsg_instance_id and settings.ultramsg_token:
+        green_api = UltraMsgGateway(
+            settings.ultramsg_instance_id,
+            settings.ultramsg_token,
+            webhook_port=settings.ultramsg_webhook_port,
+        )
+        logger.info("telegram_bot.whatsapp_gateway=ultramsg")
     elif settings.green_api_instance_id and settings.green_api_token:
         green_api = GreenAPIGateway(
             settings.green_api_instance_id, settings.green_api_token
@@ -370,10 +378,18 @@ async def run_bot(settings: "Settings") -> None:
         """Send approved-but-not-yet-sent messages during the outreach window.
 
         Called every 5 minutes. Sends at most one message per tick so that
-        inter-message spacing across the 10am–1pm window feels natural
-        (~18 min average gap for 10 messages over 3 hours).
+        inter-message spacing feels natural across the window.
+        Window end time is configurable via OUTREACH_WINDOW_END_HOUR/MINUTE in .env.
         """
-        if not is_initial_outreach_window():
+        from datetime import timedelta
+        ist = datetime.now(timezone.utc) + timedelta(seconds=int(5.5 * 3600))
+        end_h, end_m = settings.outreach_window_end_hour, settings.outreach_window_end_minute
+        in_window = (
+            ist.weekday() < 6
+            and 10 <= ist.hour
+            and (ist.hour < end_h or (ist.hour == end_h and ist.minute < end_m))
+        )
+        if not in_window:
             return
         sent_today = outreach_repo.count_initial_sent_today()
         if sent_today >= DAILY_OUTREACH_LIMIT:
@@ -388,6 +404,14 @@ async def run_bot(settings: "Settings") -> None:
             logger.warning("telegram_bot.dispatch.no_green_api")
             return
 
+        if not msg.phone or not msg.phone.strip():
+            outreach_repo.set_status(msg.id, "no_whatsapp")
+            await app.bot.send_message(
+                chat_id=chat_id,
+                text=f"Could not reach {msg.clinic_name} — no phone number on record.",
+            )
+            return
+
         try:
             wa_id = green_api.send_message(msg.phone, msg.message)
         except ValueError as e:
@@ -397,9 +421,10 @@ async def run_bot(settings: "Settings") -> None:
             return
         except Exception as e:  # noqa: BLE001
             logger.error("telegram_bot.dispatch.send_error clinic={n} err={e}", n=msg.clinic_name, e=e)
+            outreach_repo.set_status(msg.id, "no_whatsapp")
             await app.bot.send_message(
                 chat_id=chat_id,
-                text=f"Failed to send to {msg.clinic_name} ({msg.phone}): {e}",
+                text=f"Could not reach {msg.clinic_name} ({msg.phone}) on WhatsApp — marked as unreachable.\nError: {e}",
             )
             return
 

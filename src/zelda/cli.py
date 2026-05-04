@@ -916,6 +916,7 @@ def cmd_load_outreach(args: argparse.Namespace, settings: Settings) -> int:
     repo = OutreachRepository(settings.db_path)
     n_loaded = 0
     n_skipped = 0
+    n_no_phone = 0
 
     with path.open(encoding="utf-8") as f:
         for line in f:
@@ -927,12 +928,16 @@ def cmd_load_outreach(args: argparse.Namespace, settings: Settings) -> int:
             if existing and existing.status not in ("skipped",):
                 n_skipped += 1
                 continue
+            phone = record.get("phone") or ""
+            if not phone.strip():
+                n_no_phone += 1
+                continue
             msg = OutreachMessage(
                 id=str(uuid.uuid4()),
                 lead_id=record["lead_id"],
                 clinic_name=record["clinic_name"],
                 city=record["city"],
-                phone=record.get("phone") or "",
+                phone=phone,
                 message=record["message"],
                 status="pending_review",
                 created_at=datetime.now(timezone.utc),
@@ -941,7 +946,10 @@ def cmd_load_outreach(args: argparse.Namespace, settings: Settings) -> int:
             n_loaded += 1
 
     repo.close()
-    print(f"Loaded {n_loaded} messages into review queue ({n_skipped} already in pipeline).")
+    print(
+        f"Loaded {n_loaded} messages into review queue "
+        f"({n_skipped} already in pipeline, {n_no_phone} skipped — no phone number)."
+    )
     return 0
 
 

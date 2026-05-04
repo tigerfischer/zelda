@@ -24,6 +24,17 @@ class Settings(BaseSettings):
     whatsapp_cloud_webhook_verify_token: str = ""
     whatsapp_cloud_webhook_port: int = 8080
 
+    # UltraMsg WhatsApp gateway (QR-based, like Green API but more reliable)
+    # See src/zelda/gateways/ultramsg.py for setup instructions.
+    ultramsg_instance_id: str = ""
+    ultramsg_token: str = ""
+    ultramsg_webhook_port: int = 8081
+
+    # Outreach dispatch window (IST). Default: 10:00–13:00 Mon–Sat.
+    # Override end time temporarily e.g. OUTREACH_WINDOW_END_HOUR=15 OUTREACH_WINDOW_END_MINUTE=30
+    outreach_window_end_hour: int = 13
+    outreach_window_end_minute: int = 0
+
     # OAuth user credentials for Drive + Sheets.
     # `client_secrets` is the JSON downloaded from GCP > Credentials > OAuth client ID.
     # `token_cache` is a file we create on first auth and reuse thereafter.

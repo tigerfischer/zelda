@@ -35,6 +35,7 @@ OutreachStatus = Literal[
     "call_reminded",
     "called",
     "skipped",
+    "no_whatsapp",   # send attempted but number not reachable on WhatsApp
 ]
 
 
