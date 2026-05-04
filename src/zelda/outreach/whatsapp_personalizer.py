@@ -107,6 +107,36 @@ class WhatsAppPersonalizer:
         self._client = client
         self._model = model
 
+    def revise(self, ctx: LeadContext, current_message: str, instruction: str) -> str:
+        """Re-run the agent with a reviewer instruction on top of the existing signals.
+
+        The instruction is treated as an editorial note — e.g. "make it shorter",
+        "focus on no-shows", "more conversational". The agent rewrites the message
+        from scratch using both the lead signals and the instruction.
+        """
+        signals = _build_signal_summary(ctx)
+        user_prompt = (
+            f"Clinic signals:\n{signals}\n\n"
+            f"Previously drafted message:\n{current_message}\n\n"
+            f"Reviewer instruction:\n{instruction}\n\n"
+            "Apply the instruction and rewrite the message. "
+            "Keep signals that are still relevant. Follow all format rules."
+        )
+        try:
+            response = self._client.messages.create(
+                model=self._model,
+                max_tokens=512,
+                system=_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+            return response.content[0].text.strip()
+        except Exception as e:  # noqa: BLE001
+            logger.error(
+                "whatsapp_personalizer.revise_error clinic={n} err={e}",
+                n=ctx.clinic_name, e=e,
+            )
+            return current_message  # fall back to the original if the API call fails
+
     def personalize(self, ctx: LeadContext) -> str:
         """Return a personalized WhatsApp first message for the clinic."""
         signals = _build_signal_summary(ctx)

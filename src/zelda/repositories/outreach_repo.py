@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,19 @@ from typing import Any
 from loguru import logger
 
 from zelda.models.outreach_message import ConversationTurn, OutreachMessage, OutreachStatus
+
+_EDITS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS message_edits (
+    id               TEXT PRIMARY KEY,
+    outreach_id      TEXT NOT NULL,
+    lead_id          TEXT NOT NULL,
+    clinic_name      TEXT NOT NULL,
+    original_message TEXT NOT NULL,
+    instruction      TEXT NOT NULL,
+    revised_message  TEXT NOT NULL,
+    created_at       TEXT NOT NULL
+)
+"""
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS outreach_messages (
@@ -46,6 +60,7 @@ class OutreachRepository:
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute(_SCHEMA)
+        self._conn.execute(_EDITS_SCHEMA)
         self._conn.commit()
 
     def close(self) -> None:
@@ -113,6 +128,35 @@ class OutreachRepository:
         self._conn.execute(
             "UPDATE outreach_messages SET pending_reply_draft = ? WHERE id = ?",
             [draft, msg_id],
+        )
+        self._conn.commit()
+
+    def log_edit(
+        self,
+        outreach_id: str,
+        lead_id: str,
+        clinic_name: str,
+        original_message: str,
+        instruction: str,
+        revised_message: str,
+    ) -> None:
+        """Record one human-requested rewrite for later agent training."""
+        self._conn.execute(
+            """
+            INSERT INTO message_edits
+              (id, outreach_id, lead_id, clinic_name, original_message, instruction, revised_message, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                str(uuid.uuid4()),
+                outreach_id,
+                lead_id,
+                clinic_name,
+                original_message,
+                instruction,
+                revised_message,
+                datetime.now(timezone.utc).isoformat(),
+            ],
         )
         self._conn.commit()
 

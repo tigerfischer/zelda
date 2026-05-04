@@ -59,7 +59,7 @@ if TYPE_CHECKING:
     from zelda.config import Settings
 
 DAILY_OUTREACH_LIMIT = 10
-REVIEW_BUFFER = DAILY_OUTREACH_LIMIT * 2  # messages kept visible in Telegram at a time
+REVIEW_BUFFER = 1  # one message at a time — resolve before moving to the next
 
 
 async def run_bot(settings: "Settings") -> None:
@@ -87,7 +87,7 @@ async def run_bot(settings: "Settings") -> None:
     from zelda.outreach.call_brief_agent import generate_call_brief
     from zelda.outreach.drive_recording_sync import DriveRecordingSync
     from zelda.outreach.reply_draft_agent import draft_reply
-    from zelda.outreach.whatsapp_personalizer import lead_context_from_enrichment
+    from zelda.outreach.whatsapp_personalizer import WhatsAppPersonalizer, lead_context_from_enrichment
     from zelda.repositories.lead_enrichment_repo import LeadEnrichmentRepository
     from zelda.repositories.outreach_repo import OutreachRepository
 
@@ -100,6 +100,7 @@ async def run_bot(settings: "Settings") -> None:
     outreach_repo = OutreachRepository(settings.db_path)
     enrichment_repo = LeadEnrichmentRepository(settings.db_path)
     anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    personalizer = WhatsAppPersonalizer(anthropic_client)
 
     # Pick WhatsApp gateway — Cloud API takes priority if configured; falls back to Green API.
     green_api: GreenAPIGateway | WhatsAppCloudAPIGateway | None = None
@@ -131,8 +132,9 @@ async def run_bot(settings: "Settings") -> None:
         drive_sync = DriveRecordingSync(drive, outreach_repo, audio_dir)
 
     # ── state for multi-step edit flow ─────────────────────────────
-    # pending_edits: {telegram_msg_id: outreach_id} — waiting for user to send new text
-    pending_edits: dict[int, str] = {}
+    # active_edit[0] holds the outreach_id currently being edited, or None.
+    # Any plain text message from the user while this is set is treated as the new text.
+    active_edit: list[str | None] = [None]
     # pending_reply_approvals: {telegram_msg_id: outreach_id}
     pending_reply_approvals: dict[int, str] = {}
 
@@ -154,7 +156,7 @@ async def run_bot(settings: "Settings") -> None:
         if data.startswith("approve:"):
             await _handle_approve(query, data[8:], context)
         elif data.startswith("edit:"):
-            await _handle_edit_request(query, data[5:], pending_edits, context)
+            await _handle_edit_request(query, data[5:], context)
         elif data.startswith("skip:"):
             await _handle_skip(query, data[5:], context)
         elif data.startswith("approve_reply:"):
@@ -176,18 +178,31 @@ async def run_bot(settings: "Settings") -> None:
             f"Will send during 10am–1pm IST window.\n"
             f"Sent today: {sent_today}/{DAILY_OUTREACH_LIMIT}  |  Queued: {remaining} slots left"
         )
-        await push_review_queue(context.application)
+        try:
+            await push_review_queue(context.application)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("telegram_bot.push_review_queue_error err={e}", e=e)
 
-    async def _handle_edit_request(query, outreach_id: str, pending: dict, context) -> None:
-        msg = await query.message.reply_text(  # type: ignore[union-attr]
-            "Send me the revised message text:"
+    async def _handle_edit_request(query, outreach_id: str, context) -> None:
+        record = outreach_repo.get(outreach_id)
+        if not record:
+            await query.edit_message_text("Message not found.")
+            return
+        active_edit[0] = outreach_id
+        await query.edit_message_text(
+            f"Editing: {record.clinic_name}\n\n"
+            f"Current message:\n{record.message}\n\n"
+            "How should this be changed? Type your instruction and the agent will rewrite it.\n"
+            "e.g. \"make it shorter\", \"focus on no-shows\", \"more conversational\""
         )
-        pending[msg.message_id] = outreach_id  # type: ignore[union-attr]
 
     async def _handle_skip(query, outreach_id: str, context) -> None:
         outreach_repo.set_status(outreach_id, "skipped")
         await query.edit_message_text("Skipped.")
-        await push_review_queue(context.application)
+        try:
+            await push_review_queue(context.application)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("telegram_bot.push_review_queue_error err={e}", e=e)
 
     async def _handle_approve_reply(query, outreach_id: str, context) -> None:
         msg = outreach_repo.get(outreach_id)
@@ -215,18 +230,36 @@ async def run_bot(settings: "Settings") -> None:
         await query.edit_message_text("Reply draft discarded.")
 
     async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle free-text replies — used for the edit flow."""
-        msg_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None  # type: ignore[union-attr]
-
-        if msg_id and msg_id in pending_edits:
-            outreach_id = pending_edits.pop(msg_id)
-            new_text = update.message.text or ""  # type: ignore[union-attr]
-            record = outreach_repo.get(outreach_id)
-            if record:
-                record = record.model_copy(update={"message": new_text})
-                outreach_repo.upsert(record)
-                await _send_for_review(update.get_bot(), chat_id, record, outreach_repo)
-                await update.message.reply_text("Updated. Review the new version above.")  # type: ignore[union-attr]
+        """Handle free-text messages — used for the edit flow."""
+        if active_edit[0] is None:
+            return
+        outreach_id = active_edit[0]
+        active_edit[0] = None
+        instruction = (update.message.text or "").strip()  # type: ignore[union-attr]
+        if not instruction:
+            return
+        record = outreach_repo.get(outreach_id)
+        if not record:
+            return
+        enrichment = enrichment_repo.get(record.lead_id)
+        if not enrichment:
+            await update.message.reply_text("No enrichment data for this lead — cannot re-run agent.")  # type: ignore[union-attr]
+            return
+        await update.message.reply_text("Revising...")  # type: ignore[union-attr]
+        ctx = lead_context_from_enrichment(enrichment)
+        original_message = record.message
+        new_message = personalizer.revise(ctx, original_message, instruction)
+        outreach_repo.log_edit(
+            outreach_id=outreach_id,
+            lead_id=record.lead_id,
+            clinic_name=record.clinic_name,
+            original_message=original_message,
+            instruction=instruction,
+            revised_message=new_message,
+        )
+        record = record.model_copy(update={"message": new_message, "telegram_review_msg_id": None})
+        outreach_repo.upsert(record)
+        await _send_for_review(update.get_bot(), chat_id, record, outreach_repo)
 
     # ── background tasks ───────────────────────────────────────────
 
