@@ -26,6 +26,8 @@ from __future__ import annotations
 import secrets
 import sqlite3
 import time
+
+from zelda.db import connect as _db_connect
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -150,8 +152,8 @@ class EnrichLeadsPipeline:
         for pass_n in enabled:
             result.passes_run[pass_n] = 0
 
-        # One sqlite3 connection for Pass 3 (raw access to practo_profiles)
-        db_conn = sqlite3.connect(self._db_path)
+        # One connection for Pass 3 (raw access to practo_profiles)
+        db_conn = _db_connect(self._db_path)
         db_conn.row_factory = sqlite3.Row
 
         try:
