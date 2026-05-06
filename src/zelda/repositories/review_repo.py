@@ -32,6 +32,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
+from zelda.db import connect as _db_connect
 from zelda.models.review import Review, ReviewSet
 
 
@@ -145,7 +146,7 @@ class ReviewRepository:
         if self._db_path != ":memory:":
             Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
 
-        self._conn = sqlite3.connect(self._db_path)
+        self._conn = _db_connect(self._db_path)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
         self.init_schema()

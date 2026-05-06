@@ -18,6 +18,8 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+
+from zelda.db import connect as _db_connect
 from typing import Any, Iterable
 
 from zelda.models.practo_listing import PractoListing
@@ -73,7 +75,7 @@ class PractoListingRepository:
         if self._db_path != ":memory:":
             Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
 
-        self._conn = sqlite3.connect(self._db_path)
+        self._conn = _db_connect(self._db_path)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
         self.init_schema()

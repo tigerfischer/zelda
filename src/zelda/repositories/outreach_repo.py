@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
+
+from zelda.db import connect as _db_connect
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,7 +58,7 @@ CREATE TABLE IF NOT EXISTS outreach_messages (
 
 class OutreachRepository:
     def __init__(self, db_path: Path | str) -> None:
-        self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
+        self._conn = _db_connect(db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute(_SCHEMA)

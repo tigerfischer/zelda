@@ -28,6 +28,8 @@ dependencies:
       - playwright==1.48.0
       # Telegram bot
       - python-telegram-bot==21.6
+      # Turso (libsql embedded replica — optional, falls back to sqlite3)
+      - libsql-experimental
       # Tests
       - pytest==8.3.3
       - respx==0.21.1

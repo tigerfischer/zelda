@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     ultramsg_token: str = ""
     ultramsg_webhook_port: int = 8081
 
+    # Turso DB (managed libSQL — enables multi-machine sync).
+    # Leave blank to use local SQLite only.
+    turso_db_url: str = ""
+    turso_auth_token: str = ""
+
     # Outreach dispatch window (IST). Default: 10:00–13:00 Mon–Sat.
     # Override end time temporarily e.g. OUTREACH_WINDOW_END_HOUR=15 OUTREACH_WINDOW_END_MINUTE=30
     outreach_window_end_hour: int = 13
